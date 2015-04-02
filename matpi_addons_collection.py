@@ -64,7 +64,7 @@ class ReportOperator(bpy.types.Operator):
     bl_label = "Report"
 
     report_text = ""
-    report_icon = 'ERROR'
+    report_icon = 'INFO'
 
     @classmethod
     def poll(cls, context):
@@ -82,7 +82,7 @@ class ReportOperator(bpy.types.Operator):
         return wm.invoke_popup(self, width=400, height=200)
 
     def draw(self, context):
-        self.layout.label("Refreshing Error")
+        self.layout.label("Refreshing Info")
         row = self.layout.row()
 
         row.label(icon=self.report_icon, text=self.report_text)
@@ -650,6 +650,7 @@ class RefreshOperator(bpy.types.Operator):
 
             props.addons[addon].local_version = info["version"]
 
+
         props.addons[addon].is_updatable = tuple(props.addons[addon].online_version) > tuple(props.addons[addon].local_version)
 
 
@@ -689,6 +690,8 @@ class InstallAllOperator(bpy.types.Operator):
         for addon in props.addons.values():
             if not addon.is_installed:
                 addon.install(context)
+
+        bpy.ops.wm.matpi_addons_refresh()
         
         return {'FINISHED'}
 
@@ -706,6 +709,8 @@ class UninstallAllOperator(bpy.types.Operator):
         for addon in props.addons.values():
             if addon.is_installed:
                 addon.uninstall(context)
+                
+        bpy.ops.wm.matpi_addons_refresh()
         
         return {'FINISHED'}
 
@@ -761,6 +766,8 @@ class UpdateAllOperator(bpy.types.Operator):
             if addon.is_installed and addon.is_updatable:
                 addon.update(context)
         #self.report({'INFO'}, str(count) + " files created at: " + context.scene.MultiOutputDir)
+
+        bpy.ops.wm.matpi_addons_refresh()
 
         return {'FINISHED'}
 
