@@ -60,32 +60,32 @@ import collections
 
 
 class ReportOperator(bpy.types.Operator):
-        bl_idname = "wm.matpi_addons_report"
-        bl_label = "Report"
+    bl_idname = "wm.matpi_addons_report"
+    bl_label = "Report"
 
-        report_text = ""
-        report_icon = 'ERROR'
+    report_text = ""
+    report_icon = 'ERROR'
 
-        @classmethod
-        def poll(cls, context):
-            return True
+    @classmethod
+    def poll(cls, context):
+        return True
 
-        def execute(self, context):
+    def execute(self, context):
 
-            self.report({self.report_icon}, self.report_text)
+        self.report({self.report_icon}, self.report_text)
 
-            return {'FINISHED'}
+        return {'FINISHED'}
 
-            
-        def invoke(self, context, event):
-            wm = context.window_manager
-            return wm.invoke_popup(self, width=400, height=200)
-     
-        def draw(self, context):
-            self.layout.label("Refreshing Error")
-            row = self.layout.row()
+    
+    def invoke(self, context, event):
+        wm = context.window_manager
+        return wm.invoke_popup(self, width=400, height=200)
 
-            row.label(icon=self.report_icon, text=self.report_text)
+    def draw(self, context):
+        self.layout.label("Refreshing Error")
+        row = self.layout.row()
+
+        row.label(icon=self.report_icon, text=self.report_text)
 
     
     
@@ -127,39 +127,41 @@ def retrieveOnlineRepoStructure():
 
 def retrieveLocalRepoStructure():
 
-    current_dir = os.getcwd()
-
     path = bpy.context.window_manager.matpi_addons_props.addons_path
 
     addons = {}
 
-    if not "" in sys.path:
-        sys.path.append("")
+    if os.path.exists(path):
 
-    for item in os.listdir(path):
+        current_dir = os.getcwd()
 
-        if os.path.isdir(os.path.join(path, item)):
-            if os.path.exists(os.path.join(path, item, "__init__.py")):
-                os.chdir(os.path.join(path))
-                mod = importlib.import_module(item)
-                # XXX: for some reason, following line needed. Bug?
-                mod = importlib.reload(mod)
-                info = mod.bl_info
-                del mod
+        if not "" in sys.path:
+            sys.path.append("")
 
-            else:
-                os.chdir(os.path.join(path, item))
-                first_file = os.listdir()[0].split(".")[0]
-                mod = importlib.import_module(first_file)
-                # XXX: for some reason, following line needed. Bug?
-                mod = importlib.reload(mod)
-                info = mod.bl_info
-                del mod
+        for item in os.listdir(path):
+        
+            if os.path.isdir(os.path.join(path, item)):
+                if os.path.exists(os.path.join(path, item, "__init__.py")):
+                    os.chdir(os.path.join(path))
+                    mod = importlib.import_module(item)
+                    # XXX: for some reason, following line needed. Bug?
+                    mod = importlib.reload(mod)
+                    info = mod.bl_info
+                    del mod
 
-            addons[item] = info
+                else:
+                    os.chdir(os.path.join(path, item))
+                    first_file = os.listdir()[0].split(".")[0]
+                    mod = importlib.import_module(first_file)
+                    # XXX: for some reason, following line needed. Bug?
+                    mod = importlib.reload(mod)
+                    info = mod.bl_info
+                    del mod
 
+                addons[item] = info
 
-    os.chdir(current_dir)
+        os.chdir(current_dir)
+        
 
     return addons
 
