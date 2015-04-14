@@ -37,6 +37,7 @@ bl_info = {"name": "Matpi's Add-ons Collection (Configurator)",
 
 base_url = "https://raw.githubusercontent.com/qwenger/BAddons/master/%s"
 addons_list_name = "ADDONS_LIST.pkl"
+prefs_name = "PREFERENCES.pkl"
 
 
 #TODO: props to redefault at unregister
@@ -53,8 +54,6 @@ import urllib.request
 import pickle
 import importlib
 import collections
-
-
 
 
 
@@ -91,13 +90,18 @@ class ReportOperator(bpy.types.Operator):
     
 
 
-
-
 def reportConnectivityError():
     bpy.types.WM_OT_matpi_addons_report.report_text = "Couldn't access to online repo." \
         " Please check your internet connectivity."
     bpy.ops.wm.matpi_addons_report('INVOKE_DEFAULT')
+
+
+def reportPathNotEmpty():
+    bpy.types.WM_OT_matpi_addons_report.report_text = "Addons path" \
+        " %s is not empty, won't be deleted." % bpy.context.window_manager.matpi_addons_props.addons_path
+    bpy.ops.wm.matpi_addons_report('INVOKE_DEFAULT')
     
+
 
 
 def retrieveFileFromURL(url):
@@ -171,7 +175,10 @@ def retrieveLocalRepoStructure():
 
 def installAddonFolder(struct, local_path, online_path):
 
-    os.mkdir(local_path)
+    try:
+        os.mkdir(local_path)
+    except FileNotFoundError:
+        return False
 
 
     for file_ in struct["_files"]:
@@ -193,6 +200,61 @@ def installAddonFolder(struct, local_path, online_path):
 
 
     return True
+
+
+
+
+
+class StaticPreferences(object):
+
+    def __init__(self):
+
+        self.initialized = False
+
+        self.addons_enabled = []
+
+
+
+
+def retrieveStaticPreferences(default_addons_path=None):
+
+    if default_addons_path is None:
+        addons_path = bpy.context.window_manager.matpi_addons_props.addons_path
+    else:
+        addons_path = default_addons_path
+
+    name = os.path.join(addons_path, prefs_name)
+
+    if os.path.exists(name):
+
+        with open(name, "rb") as f:
+
+            return pickle.load(f)
+
+    else:
+        return StaticPreferences()
+
+
+
+def saveStaticPreferences(static_pref):
+
+    addons_path = bpy.context.window_manager.matpi_addons_props.addons_path
+
+    name = os.path.join(addons_path, prefs_name)
+
+    if os.path.exists(addons_path):
+
+        with open(name, "wb") as f:
+
+            pickle.dump(static_pref, f, 4)
+
+
+
+
+
+
+
+
 
 
 
@@ -258,6 +320,7 @@ class MatpiAddonWrapper(object):
 
             def execute(op_self, context):
                 self.install(context)
+        
                 return {'FINISHED'}
 
 
@@ -412,12 +475,19 @@ class MatpiAddonWrapper(object):
     
     def register(self):
 
+        classes = (
+            self.EnableAddonOperator,
+            self.DisableAddonOperator,
+            self.InstallAddonOperator,
+            self.UninstallAddonOperator,
+            self.UpdateAddonOperator
+            )
 
-        bpy.utils.register_class(self.EnableAddonOperator)
-        bpy.utils.register_class(self.DisableAddonOperator)
-        bpy.utils.register_class(self.InstallAddonOperator)
-        bpy.utils.register_class(self.UninstallAddonOperator)
-        bpy.utils.register_class(self.UpdateAddonOperator)
+        for c in classes:
+            try:
+                bpy.utils.register_class(c)
+            except RuntimeError:
+                pass
 
         #self.update(self.activated, None)
 
@@ -426,11 +496,19 @@ class MatpiAddonWrapper(object):
 
         #getattr(bpy.ops.wm, "mcollection_addon_delete_" + self.addon_name)()
 
-        bpy.utils.unregister_class(self.EnableAddonOperator)
-        bpy.utils.unregister_class(self.DisableAddonOperator)
-        bpy.utils.unregister_class(self.InstallAddonOperator)
-        bpy.utils.unregister_class(self.UninstallAddonOperator)
-        bpy.utils.unregister_class(self.UpdateAddonOperator)
+        classes = (
+            self.EnableAddonOperator,
+            self.DisableAddonOperator,
+            self.InstallAddonOperator,
+            self.UninstallAddonOperator,
+            self.UpdateAddonOperator
+            )
+
+        for c in classes:
+            try:
+                bpy.utils.unregister_class(c)
+            except RuntimeError:
+                pass
     
 
 
@@ -481,7 +559,10 @@ class MatpiAddonWrapper(object):
             success = installAddonFolder(online_struct["_addons"][self.name], local_path, online_path)
 
             if not success:
-                shutil.rmtree(local_path)
+                try:
+                    shutil.rmtree(local_path)
+                except FileNotFoundError:
+                    pass
                 return
 
             self.info = online_struct["_addons"][self.name]["_info"]
@@ -493,6 +574,9 @@ class MatpiAddonWrapper(object):
             self.is_enabled = False
 
             self.is_installed = True
+            
+
+            bpy.ops.wm.matpi_addons_refresh()
 
 
 
@@ -500,9 +584,15 @@ class MatpiAddonWrapper(object):
         
     def uninstall(self, context):
 
+        if self.is_enabled:
+            self.disable()
+
         path = bpy.context.window_manager.matpi_addons_props.addons_path
 
-        shutil.rmtree(os.path.join(path, self.name))        
+        try:
+            shutil.rmtree(os.path.join(path, self.name))
+        except FileNotFoundError:
+            pass
 
         self.is_enabled = False
 
@@ -525,9 +615,13 @@ class MatpiAddonWrapper(object):
                     sys.path.append(addon_path)
                 self.file_name = os.listdir(addon_path)[0].split(".")[0]
 
-                self.mod = importlib.import_module(self.file_name)
-                self.mod.register()
-                self.is_enabled = True
+            self.mod = importlib.import_module(self.file_name)
+            self.mod.register()
+            self.is_enabled = True
+
+            static_prefs = retrieveStaticPreferences()
+            static_prefs.addons_enabled.append(self.name)
+            saveStaticPreferences(static_prefs)
 
         except (ImportError, FileNotFoundError):
             pass
@@ -542,6 +636,11 @@ class MatpiAddonWrapper(object):
             self.mod = None
 
         self.is_enabled = False
+
+
+        static_prefs = retrieveStaticPreferences()
+        static_prefs.addons_enabled.remove(self.name)
+        saveStaticPreferences(static_prefs)
         
 
 
@@ -572,6 +671,10 @@ class InitializeOperator(bpy.types.Operator):
 
 
             props.initialized = True
+
+            static_prefs = retrieveStaticPreferences()
+            static_prefs.initialized = True
+            saveStaticPreferences(static_prefs)
 
             return {'FINISHED'}
 
@@ -690,8 +793,6 @@ class InstallAllOperator(bpy.types.Operator):
         for addon in props.addons.values():
             if not addon.is_installed:
                 addon.install(context)
-
-        bpy.ops.wm.matpi_addons_refresh()
         
         return {'FINISHED'}
 
@@ -775,6 +876,44 @@ class UpdateAllOperator(bpy.types.Operator):
 
 
 
+
+class RemoveFolderOperator(bpy.types.Operator):
+    bl_idname = "wm.matpi_addons_removefolder"
+    bl_label = "Remove Folder"
+
+    @classmethod
+    def poll(cls, context):
+        return context.window_manager.matpi_addons_props.initialized
+
+    def execute(self, context):
+
+        props = context.window_manager.matpi_addons_props
+
+        for addon in props.addons.values():
+            if addon.is_installed:
+                addon.uninstall(bpy.context)
+            #addon.unregister()
+
+        try:
+            shutil.rmtree(props.addons_path)
+        except FileNotFoundError:
+            pass
+        """
+        if not os.listdir(props.addons_path):
+            os.rmdir(props.addons_path)
+
+        else:
+            reportPathNotEmpty()
+        """
+        
+        props.initialized = False
+        
+        return {'FINISHED'}
+
+
+
+
+
 class MatpiAddonsCollectionPreferences(bpy.types.AddonPreferences):
     bl_idname = __name__
 
@@ -794,7 +933,11 @@ class MatpiAddonsCollectionPreferences(bpy.types.AddonPreferences):
 
             split = row.split(percentage=0.15)
             split.label(text="Folder Path:")
-            split.label(text=props.addons_path)
+            split2 = split.split(percentage=0.8)
+            split2.label(text=props.addons_path)
+            split2.operator("wm.matpi_addons_removefolder", icon='CANCEL')
+
+            layout.separator()
 
             row = layout.row()
 
@@ -882,6 +1025,8 @@ def register():
 
     default_addons_path = os.path.normpath(
         os.path.join(bpy.utils.script_paths()[-1], "matpi_addons"))
+
+    static_prefs = retrieveStaticPreferences(default_addons_path)
     
     #bpy.utils.register_class(MatpiAddonsCollectionPreferences)
     #bpy.utils.register_class(MatpiAddonWrapper)
@@ -893,7 +1038,7 @@ def register():
         initialized = bpy.props.BoolProperty(
             name="Initialized",
             description="",
-            default=False)
+            default=static_prefs.initialized)
         
         addons_path = bpy.props.StringProperty(
             name="Path",
@@ -968,7 +1113,7 @@ def register():
         pp = bpy.props.BoolProperty(
             name="is_enabled",
             description="",
-            default=False)
+            default=addon in static_prefs.addons_enabled)
 
         setattr(props.__class__, "is_enabled%s" % i, pp)
 
@@ -980,8 +1125,11 @@ def unregister():
     bpy.utils.unregister_class(FindMasterAddonsOperator)
     """
 
-    for addon in bpy.context.window_manager.matpi_addons_props.addons.values():
+    props = bpy.context.window_manager.matpi_addons_props
+
+    for addon in props.addons.values():
         addon.unregister()
+        
 
     bpy.utils.unregister_module(__name__)
 
