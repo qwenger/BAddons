@@ -1118,6 +1118,9 @@ def register():
         setattr(props.__class__, "is_enabled%s" % i, pp)
 
         props.addons[addon].local_version = info["version"]
+
+        if addon in static_prefs.addons_enabled:
+            props.addons[addon].enable()
         
 
 def unregister():
