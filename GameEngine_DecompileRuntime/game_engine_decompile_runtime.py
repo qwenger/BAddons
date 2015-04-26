@@ -22,7 +22,8 @@ bl_info = {
     "version": (1, 0),
     "blender": (2, 74, 0),
     "location": "File > Import",
-    "description": "Retrieve a .blend file from a bundled BlenderPlayer runtime.",
+    "description": "Retrieve a .blend file from a bundled BlenderPlayer runtime, "
+                   "even from another platform.",
     "warning": "",
     "wiki_url": "",
     "category": "Game Engine",
@@ -34,12 +35,12 @@ import sys
 import tempfile
 
 
-def OpenBlend(input_path, report=print):
+def OpenBlend(input_path, use_temp_dir, load_file, to_clipboard, report=print):
     import struct
 
     # Check the path
     if not os.path.isfile(input_path):
-        report({'ERROR'}, "The executable file could not be found! .blend file not retrieved")
+        report({'ERROR'}, "The executable file could not be found! .blend file not retrieved.")
         return
     
     # Get the binary file
@@ -53,8 +54,12 @@ def OpenBlend(input_path, report=print):
         return
     
     # Create a new file for the .blend
-    temp_fd, temp_path = tempfile.mkstemp(suffix=".blend")
-    output = open(temp_fd, "wb")
+    if use_temp_dir:
+        temp_fd, blend_path = tempfile.mkstemp(suffix=".blend")
+        output = open(temp_fd, "wb")
+    else:
+        blend_path = os.path.splitext(input_path)[0] + ".blend"
+        output = open(blend_path, "wb")
     
     
     # Retrieve the offset
@@ -69,7 +74,14 @@ def OpenBlend(input_path, report=print):
     
     print("done")
 
-    bpy.ops.wm.open_mainfile(filepath=temp_path)
+    if to_clipboard:
+        bpy.data.window_managers['WinMan'].clipboard = blend_path
+
+    if load_file:
+        bpy.ops.wm.open_mainfile(filepath=blend_path)
+
+    else:
+        report({'INFO'}, ".blend file saved at %s." % blend_path)
     
 
 from bpy.props import *
@@ -80,11 +92,29 @@ class RetrieveFromRuntime(bpy.types.Operator):
     bl_label = "Retrieve .blend from Game Engine Runtime"
     bl_options = {'REGISTER'}
 
-    ext = '.app' if sys.platform == 'darwin' else os.path.splitext(bpy.app.binary_path)[-1]
-    filter_glob = StringProperty(default="*%s" % ext, options={'HIDDEN'})
+    # it should even be possible to use runtimes from other platforms!
+    #ext = '.app' if sys.platform == 'darwin' else os.path.splitext(bpy.app.binary_path)[-1]
+    #filter_glob = StringProperty(default="*%s" % ext, options={'HIDDEN'})
     
     filepath = StringProperty(
-        subtype='FILE_PATH',
+        subtype='FILE_PATH'
+        )
+    tempdir = BoolProperty(
+        name="Use temporary location",
+        description="Places the created .blend file in a temporary location "
+                    "rather than in the same folder as the runtime",
+        default=False
+        )
+    loadfile = BoolProperty(
+        name="Load file",
+        description="Loads the created .blend file in the current Blender session; "
+                    "This is not recommended if the runtime has been created with a previous version of Blender",
+        default=False
+        )
+    toclipboard = BoolProperty(
+        name="Copy path to clipboard",
+        description="Copies the path of the created .blend file to the clipboard",
+        default=False
         )
 
     def execute(self, context):
@@ -92,7 +122,10 @@ class RetrieveFromRuntime(bpy.types.Operator):
         start_time = time.clock()
         print("Retrieving .blend from %r" % self.filepath)
         OpenBlend(self.filepath,
-                  self.report,
+                  self.tempdir,
+                  self.loadfile,
+                  self.toclipboard,
+                  self.report
                   )
         print("Finished in %.4fs" % (time.clock()-start_time))
         return {'FINISHED'}
