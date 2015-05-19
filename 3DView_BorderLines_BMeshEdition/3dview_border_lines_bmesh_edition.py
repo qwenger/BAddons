@@ -42,6 +42,7 @@ bl_info = {"name": "Border Lines - BMesh Edition",
 
 import bpy
 from bpy_extras.mesh_utils import edge_face_count_dict
+from mathutils import Vector
 from bgl import glBegin, glLineWidth, glColor3f, glColor4f, glVertex3f, glEnd, GL_LINE_STRIP
 import bmesh
 
@@ -74,7 +75,7 @@ def drawCallback():
 
                 for edge in bm.edges:
                     if edge.is_valid and edge.is_boundary:
-                        coords = [vert.co for vert in edge.verts]
+                        coords = [obj.matrix_world*vert.co for vert in edge.verts]
 
                         def drawColorSize(color):
 
@@ -96,7 +97,7 @@ def drawCallback():
                 for edge in mesh.edges:
                     # border edges
                     if counts[edge.key] == 1:
-                        coords = [mesh.vertices[i].co for i in edge.key]
+                        coords = [obj.matrix_world*Vector(mesh.vertices[i].co) for i in edge.key]
 
                         def drawColorSize(color):
 

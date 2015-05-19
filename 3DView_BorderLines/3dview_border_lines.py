@@ -25,7 +25,7 @@
 bl_info = {"name": "Border Lines",
            "description": "Draw thicker lines for border edges",
            "author": "Quentin Wenger (Matpi)",
-           "version": (1, 0),
+           "version": (1, 1),
            "blender": (2, 74, 0),
            "location": "3D View(s) -> Properties -> Shading",
            "warning": "",
@@ -38,6 +38,7 @@ bl_info = {"name": "Border Lines",
 
 import bpy
 from bpy_extras.mesh_utils import edge_face_count_dict
+from mathutils import Vector
 from bgl import glBegin, glLineWidth, glColor3f, glColor4f, glVertex3f, glEnd, GL_LINE_STRIP
 
 
@@ -62,7 +63,7 @@ def drawCallback():
             for edge in mesh.edges:
                 # border edges
                 if counts[edge.key] == 1:
-                    coords = [mesh.vertices[i].co for i in edge.key]
+                    coords = [obj.matrix_world*Vector(mesh.vertices[i].co) for i in edge.key]
 
                     def drawColorSize(color, main=True, alpha=None):
 
