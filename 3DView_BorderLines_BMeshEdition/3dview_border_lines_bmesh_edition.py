@@ -29,7 +29,7 @@ bl_info = {"name": "Border Lines - BMesh Edition",
                           "edges (freestyle, crease, seam, sharp, etc.), which are "\
                           "nevertheless shown normally.",
            "author": "Quentin Wenger (Matpi)",
-           "version": (1, 0),
+           "version": (1, 1),
            "blender": (2, 74, 0),
            "location": "3D View(s) -> Properties -> Shading",
            "warning": "",
@@ -98,16 +98,10 @@ def drawCallback():
                     if counts[edge.key] == 1:
                         coords = [mesh.vertices[i].co for i in edge.key]
 
-                        def drawColorSize(color, main=True):
+                        def drawColorSize(color):
 
-                            if main:
-                                glLineWidth(point_size[0])
-                            else:
-                                glLineWidth(point_size[0]/3.0)
-                            if alpha is None:
-                                glColor3f(*color[:3])
-                            else:
-                                glColor4f(color[0], color[1], color[2], alpha)
+                            glLineWidth(point_size[0])
+                            glColor3f(*color[:3])
                             glBegin(GL_LINE_STRIP)
                             for coord in coords:
                                 glVertex3f(*coord)
