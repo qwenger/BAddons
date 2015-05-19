@@ -29,7 +29,7 @@ bl_info = {"name": "Border Lines - BMesh Edition",
                           "edges (freestyle, crease, seam, sharp, etc.), which are "\
                           "nevertheless shown normally.",
            "author": "Quentin Wenger (Matpi)",
-           "version": (1, 1),
+           "version": (1, 2),
            "blender": (2, 74, 0),
            "location": "3D View(s) -> Properties -> Shading",
            "warning": "",
