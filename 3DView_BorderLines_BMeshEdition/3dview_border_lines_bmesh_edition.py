@@ -114,10 +114,10 @@ def drawCallback():
                             glEnd()
                         
                         
-                            if obj.select:
-                                drawColorSize(settings.object_active)
-                            else:
-                                drawColorSize(settings.wire)
+                        if obj.select:
+                            drawColorSize(settings.object_active)
+                        else:
+                            drawColorSize(settings.wire)
 
                     
                     
