@@ -1,7 +1,7 @@
 # ##### BEGIN GPL LICENSE BLOCK #####
 #
-#  3dview_border_lines.py
-#  Draw thicker lines for border edges
+#  3dview_border_lines_bmesh_edition.py
+#  Draw thicker lines for border edges - using bmesh in edit mode
 #  Copyright (C) 2015 Quentin Wenger
 #
 #  This program is free software; you can redistribute it and/or
@@ -22,8 +22,12 @@
 
 
 
-bl_info = {"name": "Border Lines",
-           "description": "Draw thicker lines for border edges",
+bl_info = {"name": "Border Lines - BMesh Edition",
+           "description": "Draw thicker lines for border edges; this is a version "\
+                          "of the addon which should be faster than the original; "\
+                          "it allows thick display of active edge color, but notof fancy "\
+                          "edges (freestyle, crease, seam, sharp, etc.), which are "\
+                          "nevertheless shown normally.",
            "author": "Quentin Wenger (Matpi)",
            "version": (1, 0),
            "blender": (2, 74, 0),
@@ -39,11 +43,12 @@ bl_info = {"name": "Border Lines",
 import bpy
 from bpy_extras.mesh_utils import edge_face_count_dict
 from bgl import glBegin, glLineWidth, glColor3f, glColor4f, glVertex3f, glEnd, GL_LINE_STRIP
-
+import bmesh
 
 handle = []
 do_draw = [False]
 point_size = [3.0]
+bm_old = [None]
 
 
 
@@ -58,89 +63,71 @@ def drawCallback():
             show_edge_seams = mesh.show_edge_seams
             show_edge_sharp = mesh.show_edge_sharp
             show_freestyle_edge_marks = mesh.show_freestyle_edge_marks
-            
-            for edge in mesh.edges:
-                # border edges
-                if counts[edge.key] == 1:
-                    coords = [mesh.vertices[i].co for i in edge.key]
 
-                    def drawColorSize(color, main=True, alpha=None):
+            if bpy.context.mode == 'EDIT_MESH':
 
-                        if main:
+                if bm_old[0] is None:
+                    bm = bm_old[0] = bmesh.from_edit_mesh(mesh)
+
+                else:
+                    bm = bm_old[0]
+
+                for edge in bm.edges:
+                    if edge.is_boundary:
+                        coords = [vert.co for vert in edge.verts]
+
+                        def drawColorSize(color):
+
                             glLineWidth(point_size[0])
-                        else:
-                            glLineWidth(point_size[0]/3.0)
-                        if alpha is None:
                             glColor3f(*color[:3])
-                        else:
-                            glColor4f(color[0], color[1], color[2], alpha)
-                        glBegin(GL_LINE_STRIP)
-                        for coord in coords:
-                            glVertex3f(*coord)
-                        glEnd()
-                    
-                    
-                    if bpy.context.mode == 'OBJECT' and (obj.show_wire or bpy.context.space_data.viewport_shade == 'WIREFRAME'):
-                        if obj.select:
-                            drawColorSize(settings.object_active)
-                        else:
-                            drawColorSize(settings.wire)
+                            glBegin(GL_LINE_STRIP)
+                            for coord in coords:
+                                glVertex3f(*coord)
+                            glEnd()
 
-                    elif bpy.context.mode == 'EDIT_MESH':
-                        main = False
-                        if edge.use_freestyle_mark and show_freestyle_edge_marks:
-                            drawColorSize(settings.freestyle_edge_mark)
-                        elif edge.use_edge_sharp and show_edge_sharp:
-                            drawColorSize(settings.edge_sharp)
-                        elif edge.use_seam and show_edge_seams:
-                            drawColorSize(settings.edge_seam)
+                        if bm.select_history.active == edge:
+                            drawColorSize(settings.transform)
+                        elif edge.select:
+                            drawColorSize(settings.edge_select)
                         else:
-                            main = True
-                            
-                        if edge.crease and show_edge_crease:
-                            drawColorSize(settings.edge_crease, alpha=edge.crease)
-                            main = False
+                            drawColorSize(settings.wire_edit)
 
-                        if edge.select:
-                            drawColorSize(settings.edge_select, main=main)
-                        else:
-                            drawColorSize(settings.wire_edit, main=main)
+            elif obj.show_wire or bpy.context.space_data.viewport_shade == 'WIREFRAME':
+                for edge in mesh.edges:
+                    # border edges
+                    if counts[edge.key] == 1:
+                        coords = [mesh.vertices[i].co for i in edge.key]
+
+                        def drawColorSize(color, main=True):
+
+                            if main:
+                                glLineWidth(point_size[0])
+                            else:
+                                glLineWidth(point_size[0]/3.0)
+                            if alpha is None:
+                                glColor3f(*color[:3])
+                            else:
+                                glColor4f(color[0], color[1], color[2], alpha)
+                            glBegin(GL_LINE_STRIP)
+                            for coord in coords:
+                                glVertex3f(*coord)
+                            glEnd()
+                        
+                        
+                            if obj.select:
+                                drawColorSize(settings.object_active)
+                            else:
+                                drawColorSize(settings.wire)
+
                     
-                    glLineWidth(1.0)
+                    
+            glLineWidth(1.0)
             
 
 
-def updateScene(scene=None, force=False):
-    if bpy.context.mode == 'EDIT_MESH':
-        obj = bpy.context.object
-
-        border_lines = bpy.context.window_manager.border_lines
-
-        if border_lines.updating_locked or force:
-            obj.update_from_editmode()
-
-            for window in bpy.context.window_manager.windows:
-                for area in window.screen.areas:
-                    if area.type == 'VIEW_3D':
-                        for region in area.regions:
-                            if region.type == 'WINDOW':
-                                region.tag_redraw()
-                                break
-
-class RefreshOperator(bpy.types.Operator):
-    bl_idname = "wm.border_lines_refresh"
-    bl_label = "Refresh"
-    bl_description = "Update values"
-
-    @classmethod
-    def poll(cls, context):
-        return (context.area.type == 'VIEW_3D' and
-            context.mode == 'EDIT_MESH')
-
-    def execute(self, context):
-        if not context.window_manager.border_lines.updating_locked:
-            updateScene(force=True)
-        return {'FINISHED'}
+def updateScene(scene):
+    if bpy.context.mode != 'EDIT_MESH':
+        bm_old[0] = None
 
 
 
@@ -180,19 +167,7 @@ def displayBorderLinesPanel(self, context):
 
     border_lines = context.window_manager.border_lines
 
-    if context.mode == 'EDIT_MESH' and border_lines.borderlines_use:
-        split = layout.split(percentage=0.7)
-        split.prop(border_lines, "borderlines_use")
-        split2 = split.split(align=True)
-        if border_lines.updating_locked:
-            split2.operator("wm.border_lines_refresh", text="", icon='FILE_REFRESH', emboss=False)
-            split2.prop(border_lines, "updating_locked", icon_only=True, toggle=True, icon='LOCKED')
-        else:
-            split2.operator("wm.border_lines_refresh", text="", icon='FILE_REFRESH')
-            split2.prop(border_lines, "updating_locked", icon_only=True, toggle=True, icon='UNLOCKED')
-    else:
-        layout.prop(border_lines, "borderlines_use")
-
+    layout.prop(border_lines, "borderlines_use")
 
     if border_lines.borderlines_use:
         layout.prop(border_lines, "borderlines_width")        
