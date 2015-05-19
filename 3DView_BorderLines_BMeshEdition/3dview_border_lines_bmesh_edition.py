@@ -66,14 +66,14 @@ def drawCallback():
 
             if bpy.context.mode == 'EDIT_MESH':
 
-                if bm_old[0] is None:
+                if bm_old[0] is None or not bm_old[0].is_valid:
                     bm = bm_old[0] = bmesh.from_edit_mesh(mesh)
 
                 else:
                     bm = bm_old[0]
 
                 for edge in bm.edges:
-                    if edge.is_boundary:
+                    if edge.is_valid and edge.is_boundary:
                         coords = [vert.co for vert in edge.verts]
 
                         def drawColorSize(color):
