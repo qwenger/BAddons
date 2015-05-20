@@ -29,7 +29,7 @@ bl_info = {"name": "Border Lines - BMesh Edition",
                           "edges (freestyle, crease, seam, sharp, etc.), which are "\
                           "nevertheless shown normally.",
            "author": "Quentin Wenger (Matpi)",
-           "version": (1, 2),
+           "version": (1, 3),
            "blender": (2, 74, 0),
            "location": "3D View(s) -> Properties -> Shading",
            "warning": "",
@@ -120,11 +120,6 @@ def drawCallback():
             
 
 
-def updateScene(scene):
-    if bpy.context.mode != 'EDIT_MESH':
-        bm_old[0] = None
-
-
 
 def updateBGLData(self, context):
     point_size[0] = self.borderlines_width
@@ -173,18 +168,15 @@ def register():
     bpy.types.WindowManager.border_lines = bpy.props.PointerProperty(
         type=BorderLinesCollectionGroup)
     bpy.types.VIEW3D_PT_view3d_shading.append(displayBorderLinesPanel)
-    bpy.app.handlers.scene_update_post.append(updateScene)
-    if not handle:
-        handle[:] = [bpy.types.SpaceView3D.draw_handler_add(drawCallback, (), 'WINDOW', 'POST_VIEW')]
+    if handle:
+        bpy.types.SpaceView3D.draw_handler_remove(handle[0], 'WINDOW')
+    handle[:] = [bpy.types.SpaceView3D.draw_handler_add(drawCallback, (), 'WINDOW', 'POST_VIEW')]
 
     
 
 def unregister():
     bpy.types.VIEW3D_PT_view3d_shading.remove(displayBorderLinesPanel)
     del bpy.types.WindowManager.border_lines
-    # to be sure...
-    if updateScene in bpy.app.handlers.scene_update_post:
-        bpy.app.handlers.scene_update_post.remove(updateScene)
     if handle:
         bpy.types.SpaceView3D.draw_handler_remove(handle[0], 'WINDOW')
         handle[:] = []
