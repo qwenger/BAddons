@@ -29,7 +29,7 @@ bl_info = {"name": "Border Lines - BMesh Edition",
                           "edges (freestyle, crease, seam, sharp, etc.), which are "\
                           "nevertheless shown normally.",
            "author": "Quentin Wenger (Matpi)",
-           "version": (1, 3),
+           "version": (1, 4),
            "blender": (2, 74, 0),
            "location": "3D View(s) -> Properties -> Shading",
            "warning": "",
@@ -43,7 +43,7 @@ bl_info = {"name": "Border Lines - BMesh Edition",
 import bpy
 from bpy_extras.mesh_utils import edge_face_count_dict
 from mathutils import Vector
-from bgl import glBegin, glLineWidth, glColor3f, glColor4f, glVertex3f, glEnd, GL_LINE_STRIP
+from bgl import glBegin, glLineWidth, glColor3f, glColor4f, glVertex3f, glEnd, GL_LINES
 import bmesh
 
 handle = []
@@ -65,6 +65,9 @@ def drawCallback():
             show_edge_sharp = mesh.show_edge_sharp
             show_freestyle_edge_marks = mesh.show_freestyle_edge_marks
 
+            glLineWidth(point_size[0])
+            glBegin(GL_LINES)
+
             if bpy.context.mode == 'EDIT_MESH':
 
                 if bm_old[0] is None or not bm_old[0].is_valid:
@@ -78,14 +81,10 @@ def drawCallback():
                         coords = [obj.matrix_world*vert.co for vert in edge.verts]
 
                         def drawColorSize(color):
-
-                            glLineWidth(point_size[0])
                             glColor3f(*color[:3])
-                            glBegin(GL_LINE_STRIP)
                             for coord in coords:
                                 glVertex3f(*coord)
-                            glEnd()
-
+                            
                         if bm.select_history.active == edge:
                             drawColorSize(settings.transform)
                         elif edge.select:
@@ -100,14 +99,10 @@ def drawCallback():
                         coords = [obj.matrix_world*Vector(mesh.vertices[i].co) for i in edge.key]
 
                         def drawColorSize(color):
-
-                            glLineWidth(point_size[0])
                             glColor3f(*color[:3])
-                            glBegin(GL_LINE_STRIP)
                             for coord in coords:
                                 glVertex3f(*coord)
-                            glEnd()
-                        
+                            
                         
                         if obj.select:
                             drawColorSize(settings.object_active)
@@ -116,6 +111,7 @@ def drawCallback():
 
                     
                     
+            glEnd()
             glLineWidth(1.0)
             
 

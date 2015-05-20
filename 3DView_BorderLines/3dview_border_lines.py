@@ -25,7 +25,7 @@
 bl_info = {"name": "Border Lines",
            "description": "Draw thicker lines for border edges",
            "author": "Quentin Wenger (Matpi)",
-           "version": (1, 1),
+           "version": (1, 2),
            "blender": (2, 74, 0),
            "location": "3D View(s) -> Properties -> Shading",
            "warning": "",
@@ -39,7 +39,7 @@ bl_info = {"name": "Border Lines",
 import bpy
 from bpy_extras.mesh_utils import edge_face_count_dict
 from mathutils import Vector
-from bgl import glBegin, glLineWidth, glColor3f, glColor4f, glVertex3f, glEnd, GL_LINE_STRIP
+from bgl import glBegin, glLineWidth, glColor3f, glColor4f, glVertex3f, glEnd, GL_LINES
 
 
 handle = []
@@ -60,6 +60,8 @@ def drawCallback():
             show_edge_sharp = mesh.show_edge_sharp
             show_freestyle_edge_marks = mesh.show_freestyle_edge_marks
             
+            glBegin(GL_LINES)
+            
             for edge in mesh.edges:
                 # border edges
                 if counts[edge.key] == 1:
@@ -75,10 +77,8 @@ def drawCallback():
                             glColor3f(*color[:3])
                         else:
                             glColor4f(color[0], color[1], color[2], alpha)
-                        glBegin(GL_LINE_STRIP)
                         for coord in coords:
                             glVertex3f(*coord)
-                        glEnd()
                     
                     
                     if bpy.context.mode == 'OBJECT' and (obj.show_wire or bpy.context.space_data.viewport_shade == 'WIREFRAME'):
@@ -107,8 +107,9 @@ def drawCallback():
                         else:
                             drawColorSize(settings.wire_edit, main=main)
                     
-                    glLineWidth(1.0)
-            
+            glEnd()
+            glLineWidth(1.0)
+                
 
 
 def updateScene(scene=None, force=False):
