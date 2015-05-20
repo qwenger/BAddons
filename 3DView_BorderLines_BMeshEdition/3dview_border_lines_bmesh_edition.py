@@ -29,7 +29,7 @@ bl_info = {"name": "Border Lines - BMesh Edition",
                           "edges (freestyle, crease, seam, sharp, etc.), which are "\
                           "nevertheless shown normally.",
            "author": "Quentin Wenger (Matpi)",
-           "version": (1, 4),
+           "version": (1, 5),
            "blender": (2, 74, 0),
            "location": "3D View(s) -> Properties -> Shading",
            "warning": "",
@@ -41,7 +41,7 @@ bl_info = {"name": "Border Lines - BMesh Edition",
 
 
 import bpy
-from bpy_extras.mesh_utils import edge_face_count_dict
+from bpy_extras.mesh_utils import edge_face_count
 from mathutils import Vector
 from bgl import glBegin, glLineWidth, glColor3f, glColor4f, glVertex3f, glEnd, GL_LINES
 import bmesh
@@ -53,17 +53,24 @@ bm_old = [None]
 
 
 
+def drawColorSize(coords, color):
+    glColor3f(*color[:3])
+    for coord in coords:
+        glVertex3f(*coord)
+
 def drawCallback():
     obj = bpy.context.object
     if obj and obj.type == 'MESH' and obj.data:
         if do_draw[0]:
             mesh = obj.data
-            counts = edge_face_count_dict(mesh)
+            matrix_world = obj.matrix_world
             settings = bpy.context.user_preferences.themes[0].view_3d
-            show_edge_crease = mesh.show_edge_crease
-            show_edge_seams = mesh.show_edge_seams
-            show_edge_sharp = mesh.show_edge_sharp
-            show_freestyle_edge_marks = mesh.show_freestyle_edge_marks
+
+            transform = settings.transform
+            edge_select = settings.edge_select
+            wire_edit = settings.wire_edit
+            wire = settings.wire
+            object_active = settings.object_active
 
             glLineWidth(point_size[0])
             glBegin(GL_LINES)
@@ -76,40 +83,32 @@ def drawCallback():
                 else:
                     bm = bm_old[0]
 
+                active = bm.select_history.active
                 for edge in bm.edges:
                     if edge.is_valid and edge.is_boundary:
-                        coords = [obj.matrix_world*vert.co for vert in edge.verts]
+                        coords = [matrix_world*vert.co for vert in edge.verts]
 
-                        def drawColorSize(color):
-                            glColor3f(*color[:3])
-                            for coord in coords:
-                                glVertex3f(*coord)
-                            
-                        if bm.select_history.active == edge:
-                            drawColorSize(settings.transform)
+                        if active == edge:
+                            drawColorSize(coords, transform)
                         elif edge.select:
-                            drawColorSize(settings.edge_select)
+                            drawColorSize(coords, edge_select)
                         else:
-                            drawColorSize(settings.wire_edit)
+                            drawColorSize(coords, wire_edit)
 
-            elif obj.show_wire or bpy.context.space_data.viewport_shade == 'WIREFRAME':
-                for edge in mesh.edges:
-                    # border edges
-                    if counts[edge.key] == 1:
-                        coords = [obj.matrix_world*Vector(mesh.vertices[i].co) for i in edge.key]
-
-                        def drawColorSize(color):
-                            glColor3f(*color[:3])
-                            for coord in coords:
-                                glVertex3f(*coord)
-                            
-                        
-                        if obj.select:
-                            drawColorSize(settings.object_active)
-                        else:
-                            drawColorSize(settings.wire)
-
-                    
+            elif bpy.context.mode == 'OBJECT' and (obj.show_wire or bpy.context.space_data.viewport_shade == 'WIREFRAME'):
+                counts = edge_face_count(mesh)
+                if obj.select:
+                    for edge, count in zip(mesh.edges, counts):
+                        # border edges
+                        if count == 1:
+                            coords = [matrix_world*Vector(mesh.vertices[i].co) for i in edge.key]
+                            drawColorSize(coords, object_active)
+                else:
+                    for edge, count in zip(mesh.edges, counts):
+                        # border edges
+                        if count == 1:
+                            coords = [matrix_world*Vector(mesh.vertices[i].co) for i in edge.key]
+                            drawColorSize(coords, wire)
                     
             glEnd()
             glLineWidth(1.0)
