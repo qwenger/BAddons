@@ -29,7 +29,7 @@ bl_info = {"name": "Border Lines - BMesh Edition",
                           "edges (freestyle, crease, seam, sharp, etc.), which are "\
                           "nevertheless shown normally.",
            "author": "Quentin Wenger (Matpi)",
-           "version": (1, 6),
+           "version": (1, 7),
            "blender": (2, 74, 0),
            "location": "3D View(s) -> Properties -> Shading",
            "warning": "",
@@ -43,7 +43,7 @@ bl_info = {"name": "Border Lines - BMesh Edition",
 import bpy
 from bpy_extras.mesh_utils import edge_face_count
 from mathutils import Vector
-from bgl import glBegin, glLineWidth, glColor3f, glColor4f, glVertex3f, glEnd, GL_LINES
+from bgl import glBegin, glLineWidth, glColor3f, glColor4f, glVertex3f, glEnd, GL_LINES, glEnable, glDisable, GL_DEPTH_TEST
 import bmesh
 
 handle = []
@@ -51,7 +51,7 @@ do_draw = [False]
 point_size = [3.0]
 bm_old = [None]
 use_custom_color = [False]
-custom_color = [(0.0, 0.0, 1.0)]
+custom_color = [(0.0, 1.0, 0.0)]
 
 
 
@@ -75,7 +75,6 @@ def drawCallback():
             object_active = settings.object_active
 
             glLineWidth(point_size[0])
-            glBegin(GL_LINES)
 
             if bpy.context.mode == 'EDIT_MESH':
 
@@ -85,6 +84,14 @@ def drawCallback():
                 else:
                     bm = bm_old[0]
 
+
+                no_depth = not bpy.context.space_data.use_occlude_geometry
+
+                if no_depth:
+                    glDisable(GL_DEPTH_TEST)
+
+                    
+                glBegin(GL_LINES)
 
                 if use_custom_color[0]:
                     for edge in bm.edges:
@@ -108,8 +115,16 @@ def drawCallback():
                             else:
                                 drawColorSize(coords, wire_edit)
 
+                glEnd()
+
+                if no_depth:
+                    glEnable(GL_DEPTH_TEST)
+                    
+
             elif bpy.context.mode == 'OBJECT' and (obj.show_wire or bpy.context.space_data.viewport_shade == 'WIREFRAME'):
                 counts = edge_face_count(mesh)
+
+                glBegin(GL_LINES)
 
                 if use_custom_color[0]:
                     for edge, count in zip(mesh.edges, counts):
@@ -134,9 +149,9 @@ def drawCallback():
                                 coords = [matrix_world*Vector(mesh.vertices[i].co) for i in edge.key]
                                 drawColorSize(coords, wire)
                     
-            glEnd()
+                glEnd()
+                
             glLineWidth(1.0)
-            
 
 
 
@@ -172,7 +187,7 @@ class BorderLinesCollectionGroup(bpy.types.PropertyGroup):
     custom_color = bpy.props.FloatVectorProperty(
         name="Custom Color",
         description="Unique Color to draw Border Lines with",
-        default=(0.0, 0.0, 1.0),
+        default=(0.0, 1.0, 0.0),
         size=3,
         subtype='COLOR',
         update=updateBGLData)
