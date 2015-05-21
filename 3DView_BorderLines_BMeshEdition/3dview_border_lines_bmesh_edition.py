@@ -29,7 +29,7 @@ bl_info = {"name": "Border Lines - BMesh Edition",
                           "edges (freestyle, crease, seam, sharp, etc.), which are "\
                           "nevertheless shown normally.",
            "author": "Quentin Wenger (Matpi)",
-           "version": (1, 5),
+           "version": (1, 6),
            "blender": (2, 74, 0),
            "location": "3D View(s) -> Properties -> Shading",
            "warning": "",
@@ -50,6 +50,8 @@ handle = []
 do_draw = [False]
 point_size = [3.0]
 bm_old = [None]
+use_custom_color = [False]
+custom_color = [(0.0, 0.0, 1.0)]
 
 
 
@@ -83,32 +85,54 @@ def drawCallback():
                 else:
                     bm = bm_old[0]
 
-                active = bm.select_history.active
-                for edge in bm.edges:
-                    if edge.is_valid and edge.is_boundary:
-                        coords = [matrix_world*vert.co for vert in edge.verts]
 
-                        if active == edge:
-                            drawColorSize(coords, transform)
-                        elif edge.select:
-                            drawColorSize(coords, edge_select)
-                        else:
-                            drawColorSize(coords, wire_edit)
+                if use_custom_color[0]:
+                    for edge in bm.edges:
+                        if edge.is_valid and edge.is_boundary:
+                            coords = [matrix_world*vert.co for vert in edge.verts]
+                            glColor3f(*custom_color[0])
+                            for coord in coords:
+                                glVertex3f(*coord)
+
+
+                else:
+                    active = bm.select_history.active
+                    for edge in bm.edges:
+                        if edge.is_valid and edge.is_boundary:
+                            coords = [matrix_world*vert.co for vert in edge.verts]
+
+                            if active == edge:
+                                drawColorSize(coords, transform)
+                            elif edge.select:
+                                drawColorSize(coords, edge_select)
+                            else:
+                                drawColorSize(coords, wire_edit)
 
             elif bpy.context.mode == 'OBJECT' and (obj.show_wire or bpy.context.space_data.viewport_shade == 'WIREFRAME'):
                 counts = edge_face_count(mesh)
-                if obj.select:
+
+                if use_custom_color[0]:
                     for edge, count in zip(mesh.edges, counts):
                         # border edges
                         if count == 1:
                             coords = [matrix_world*Vector(mesh.vertices[i].co) for i in edge.key]
-                            drawColorSize(coords, object_active)
+                            glColor3f(*custom_color[0])
+                            for coord in coords:
+                                glVertex3f(*coord)
+
                 else:
-                    for edge, count in zip(mesh.edges, counts):
-                        # border edges
-                        if count == 1:
-                            coords = [matrix_world*Vector(mesh.vertices[i].co) for i in edge.key]
-                            drawColorSize(coords, wire)
+                    if obj.select:
+                        for edge, count in zip(mesh.edges, counts):
+                            # border edges
+                            if count == 1:
+                                coords = [matrix_world*Vector(mesh.vertices[i].co) for i in edge.key]
+                                drawColorSize(coords, object_active)
+                    else:
+                        for edge, count in zip(mesh.edges, counts):
+                            # border edges
+                            if count == 1:
+                                coords = [matrix_world*Vector(mesh.vertices[i].co) for i in edge.key]
+                                drawColorSize(coords, wire)
                     
             glEnd()
             glLineWidth(1.0)
@@ -117,9 +141,11 @@ def drawCallback():
 
 
 def updateBGLData(self, context):
-    point_size[0] = self.borderlines_width
     if self.borderlines_use:
         do_draw[0] = True
+        point_size[0] = self.borderlines_width
+        use_custom_color[0] = self.custom_color_use
+        custom_color[0] = self.custom_color
         return
 
     do_draw[0] = False
@@ -135,7 +161,7 @@ class BorderLinesCollectionGroup(bpy.types.PropertyGroup):
         name="Width",
         description="Border lines width in pixels",
         min=1.0,
-        max=20.0,
+        max=10.0,
         default=3.0,
         subtype='PIXEL',
         update=updateBGLData)
@@ -143,6 +169,18 @@ class BorderLinesCollectionGroup(bpy.types.PropertyGroup):
         name="Locked Refresh",
         description="Whether to continuously update values",
         default=False)
+    custom_color = bpy.props.FloatVectorProperty(
+        name="Custom Color",
+        description="Unique Color to draw Border Lines with",
+        default=(0.0, 0.0, 1.0),
+        size=3,
+        subtype='COLOR',
+        update=updateBGLData)
+    custom_color_use = bpy.props.BoolProperty(
+        name="Custom Color",
+        description="Use a unique Color to draw Border Lines with",
+        default=False,
+        update=updateBGLData)
 
 
     
@@ -155,8 +193,20 @@ def displayBorderLinesPanel(self, context):
     layout.prop(border_lines, "borderlines_use")
 
     if border_lines.borderlines_use:
-        layout.prop(border_lines, "borderlines_width")        
-        
+        split = layout.split(percentage=0.1)
+        split.separator()
+        split.prop(border_lines, "borderlines_width")
+
+        split = layout.split(percentage=0.1)
+        split.separator()
+        if border_lines.custom_color_use:
+            split2 = split.split()    
+            split2.prop(border_lines, "custom_color_use")
+            split2.prop(border_lines, "custom_color", text="")
+        else:
+            split.prop(border_lines, "custom_color_use")
+            
+    
 
 def register():
     bpy.utils.register_module(__name__)
