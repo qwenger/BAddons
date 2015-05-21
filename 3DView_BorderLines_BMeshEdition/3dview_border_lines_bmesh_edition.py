@@ -29,7 +29,7 @@ bl_info = {"name": "Border Lines - BMesh Edition",
                           "edges (freestyle, crease, seam, sharp, etc.), which are "\
                           "nevertheless shown normally.",
            "author": "Quentin Wenger (Matpi)",
-           "version": (1, 7),
+           "version": (1, 8),
            "blender": (2, 74, 0),
            "location": "3D View(s) -> Properties -> Shading",
            "warning": "",
@@ -187,10 +187,11 @@ class BorderLinesCollectionGroup(bpy.types.PropertyGroup):
     custom_color = bpy.props.FloatVectorProperty(
         name="Custom Color",
         description="Unique Color to draw Border Lines with",
+        min=0.0,
+        max=1.0,
         default=(0.0, 1.0, 0.0),
         size=3,
-        subtype='COLOR',
-        update=updateBGLData)
+        subtype='COLOR')
     custom_color_use = bpy.props.BoolProperty(
         name="Custom Color",
         description="Use a unique Color to draw Border Lines with",
