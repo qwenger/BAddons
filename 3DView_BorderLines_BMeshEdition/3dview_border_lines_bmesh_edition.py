@@ -224,7 +224,8 @@ class BorderLinesCollectionGroup(bpy.types.PropertyGroup):
     finer_lines_behind_use = bpy.props.BoolProperty(
         name="Finer Lines behind",
         description="Display partially hidden border edges finer in non-occlude mode",
-        default=True)
+        default=True,
+        update=updateBGLData)
     custom_color = bpy.props.FloatVectorProperty(
         name="Custom Color",
         description="Unique Color to draw Border Lines with",
