@@ -29,7 +29,7 @@ bl_info = {"name": "Border Lines - BMesh Edition",
                           "edges (freestyle, crease, seam, sharp, etc.), which are "\
                           "nevertheless shown normally.",
            "author": "Quentin Wenger (Matpi)",
-           "version": (1, 8),
+           "version": (1, 9),
            "blender": (2, 74, 0),
            "location": "3D View(s) -> Properties -> Shading",
            "warning": "",
@@ -52,6 +52,7 @@ point_size = [3.0]
 bm_old = [None]
 use_custom_color = [False]
 custom_color = [(0.0, 1.0, 0.0)]
+finer_lines = [False]
 
 
 
@@ -78,6 +79,8 @@ def drawCallback():
 
             if bpy.context.mode == 'EDIT_MESH':
 
+                draw_with_test = True
+
                 if bm_old[0] is None or not bm_old[0].is_valid:
                     bm = bm_old[0] = bmesh.from_edit_mesh(mesh)
 
@@ -90,36 +93,73 @@ def drawCallback():
                 if no_depth:
                     glDisable(GL_DEPTH_TEST)
 
-                    
-                glBegin(GL_LINES)
+                    draw_with_test = False
 
-                if use_custom_color[0]:
-                    for edge in bm.edges:
-                        if edge.is_valid and edge.is_boundary:
-                            coords = [matrix_world*vert.co for vert in edge.verts]
-                            glColor3f(*custom_color[0])
-                            for coord in coords:
-                                glVertex3f(*coord)
+                    if finer_lines[0]:
+                        glLineWidth(point_size[0]/4.0)
+                        draw_with_test = True
+
+                    glBegin(GL_LINES)
+
+                    if use_custom_color[0]:
+                        glColor3f(*custom_color[0])
+                        for edge in bm.edges:
+                            if edge.is_valid and edge.is_boundary:
+                                coords = [matrix_world*vert.co for vert in edge.verts]
+                                for coord in coords:
+                                    glVertex3f(*coord)
 
 
-                else:
-                    active = bm.select_history.active
-                    for edge in bm.edges:
-                        if edge.is_valid and edge.is_boundary:
-                            coords = [matrix_world*vert.co for vert in edge.verts]
+                    else:
+                        active = bm.select_history.active
+                        for edge in bm.edges:
+                            if edge.is_valid and edge.is_boundary:
+                                coords = [matrix_world*vert.co for vert in edge.verts]
 
-                            if active == edge:
-                                drawColorSize(coords, transform)
-                            elif edge.select:
-                                drawColorSize(coords, edge_select)
-                            else:
-                                drawColorSize(coords, wire_edit)
+                                if active == edge:
+                                    drawColorSize(coords, transform)
+                                elif edge.select:
+                                    drawColorSize(coords, edge_select)
+                                else:
+                                    drawColorSize(coords, wire_edit)
 
-                glEnd()
+                    glEnd()
 
-                if no_depth:
+                    glLineWidth(point_size[0])
+
                     glEnable(GL_DEPTH_TEST)
-                    
+
+
+                if draw_with_test:
+
+                    glBegin(GL_LINES)
+
+
+                    if use_custom_color[0]:
+                        glColor3f(*custom_color[0])
+                        for edge in bm.edges:
+                            if edge.is_valid and edge.is_boundary:
+                                coords = [matrix_world*vert.co for vert in edge.verts]
+                                for coord in coords:
+                                    glVertex3f(*coord)
+
+
+                    else:
+                        active = bm.select_history.active
+                        for edge in bm.edges:
+                            if edge.is_valid and edge.is_boundary:
+                                coords = [matrix_world*vert.co for vert in edge.verts]
+
+                                if active == edge:
+                                    drawColorSize(coords, transform)
+                                elif edge.select:
+                                    drawColorSize(coords, edge_select)
+                                else:
+                                    drawColorSize(coords, wire_edit)
+
+                    glEnd()
+
+                        
 
             elif bpy.context.mode == 'OBJECT' and (obj.show_wire or bpy.context.space_data.viewport_shade == 'WIREFRAME'):
                 counts = edge_face_count(mesh)
@@ -161,6 +201,7 @@ def updateBGLData(self, context):
         point_size[0] = self.borderlines_width
         use_custom_color[0] = self.custom_color_use
         custom_color[0] = self.custom_color
+        finer_lines[0] = self.finer_lines_behind_use
         return
 
     do_draw[0] = False
@@ -180,10 +221,10 @@ class BorderLinesCollectionGroup(bpy.types.PropertyGroup):
         default=3.0,
         subtype='PIXEL',
         update=updateBGLData)
-    updating_locked = bpy.props.BoolProperty(
-        name="Locked Refresh",
-        description="Whether to continuously update values",
-        default=False)
+    finer_lines_behind_use = bpy.props.BoolProperty(
+        name="Finer Lines behind",
+        description="Display partially hidden border edges finer in non-occlude mode",
+        default=True)
     custom_color = bpy.props.FloatVectorProperty(
         name="Custom Color",
         description="Unique Color to draw Border Lines with",
@@ -221,6 +262,12 @@ def displayBorderLinesPanel(self, context):
             split2.prop(border_lines, "custom_color", text="")
         else:
             split.prop(border_lines, "custom_color_use")
+
+
+        if context.mode == 'EDIT_MESH' and not context.space_data.use_occlude_geometry:
+            split = layout.split(percentage=0.1)
+            split.separator()
+            split.prop(border_lines, "finer_lines_behind_use")
             
     
 
