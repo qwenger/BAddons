@@ -4,7 +4,7 @@ Collection d'addons pour Blender
 *Note: cette documentation est également disponible en [anglais](https://github.com/qwenger/BAddons/blob/master/README.md).
 La version anglaise peut être considérée comme faisant référence.*
 
-*Note: le nom de fichier `README_FR` a été choisi à la place de `LISEZMOI` dans un souci d'uniformité.
+*Note: le nom de fichier `README_FR` a été choisi à la place de `LISEZMOI` dans un souci d'uniformité.*
 
 ## A propos
 
