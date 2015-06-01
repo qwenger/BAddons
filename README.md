@@ -31,10 +31,11 @@ Usage of this addon master is strongly recommended for a ultimate experience wit
 ## Description of the addons
 
 | Name    | Description | Current version |
-| 3DView_BorderLines_BMeshEdition | Provides a way to highlight border lines (edges connected to exactly one face) of Blender meshes to help checking topology | 1.9 |
-| 3DView_MeshStatistics | Computes some information about current Blender mesh, i.e. volume, area, position of the center of mass | 1.0 |
-| 3DView_SynchronizeViews | Provides an option to lock viewpoint in a Blender 3D view region to the one of another view region | 1.0 |
-| GameEngine_DecompileRuntime | Re-extracts the original .blend file out of a runtime executable BlenderPlayer file; this i.e. proves that the "save as Game Engine Runtime" option is reversible | 1.0 |
-| GameEngine_LegacyStart | Re-enables the 2.73-deleted option of starting the BGE from any rendering mode by pressing the P-Key in the 3D view | 1.1 |
-| Node_LocationPanel | Displays the exact position of a node in its 2D space; this is more of a demo addon, probably useless to most of the users | 1.1 |
+|---------|-------------|-----------------|
+| 3DView_BorderLines_BMeshEdition | Provides a way to highlight border lines (edges connected to exactly one face) of Blender meshes to help checking topology. | 1.9 |
+| 3DView_MeshStatistics | Computes some information about current Blender mesh, i.e. volume, area, position of the center of mass. | 1.0 |
+| 3DView_SynchronizeViews | Provides an option to lock viewpoint in a Blender 3D view region to the one of another view region. | 1.0 |
+| GameEngine_DecompileRuntime | Re-extracts the original .blend file out of a runtime executable BlenderPlayer file; this i.e. proves that the "save as Game Engine Runtime" option is reversible. | 1.0 |
+| GameEngine_LegacyStart | Re-enables the 2.73-deleted option of starting the BGE from any rendering mode by pressing the P-Key in the 3D view. | 1.1 |
+| Node_LocationPanel | Displays the exact position of a node in its 2D space; this is more of a demo addon, probably useless to most of the users. | 1.1 |
 
