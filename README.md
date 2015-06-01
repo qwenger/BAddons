@@ -28,7 +28,7 @@ Thus, a user taking advantage of this script only needs to download and install 
 
 Usage of this addon master is strongly recommended for a ultimate experience with BAddons items. Of course, downloading each addon separately is also possible.
 
-Current Version: <!--- matpi_addons_collection -->1.1<!--- / -->
+Current Version: [](matpi_addons_collection)1.1[](/)
 
 Link: [`matpi_addons_collection.py`](https://github.com/qwenger/BAddons/blob/master/matpi_addons_collection.py)
 
@@ -36,10 +36,10 @@ Link: [`matpi_addons_collection.py`](https://github.com/qwenger/BAddons/blob/mas
 
 | Name    | Description | Current version |
 |---------|-------------|-----------------|
-| [3DView_BorderLines_BMeshEdition](https://github.com/qwenger/BAddons/blob/master/3DView_BorderLines_BMeshEdition/3dview_border_lines_bmesh_edition.py) | Provides a way to highlight border lines (edges connected to exactly one face) of Blender meshes to help checking topology. | <!--- 3dview_border_lines_bmesh_edition -->1.9<!--- / --> |
-| [3DView_MeshStatistics](https://github.com/qwenger/BAddons/blob/master/3DView_MeshStatistics/3dview_mesh_statistics.py) | Computes some information about current Blender mesh, i.e. volume, area, position of the center of mass. | <!--- 3dview_mesh_statistics -->1.0<!--- / --> |
-| [3DView_SynchronizeViews](https://github.com/qwenger/BAddons/blob/master/3DView_SynchonizeViews/3dview_synchronize_views.py) | Provides an option to lock viewpoint in a Blender 3D view region to the one of another view region. This addon is currently under heavy rewriting. | <!--- 3dview_synchronize_views -->1.0<!--- / --> |
-| [GameEngine_DecompileRuntime](https://github.com/qwenger/BAddons/blob/master/GameEngine_DecompileRuntime/game_engine_decompile_runtime.py) | Re-extracts the original .blend file out of a runtime executable BlenderPlayer file; this i.e. proves that the "save as Game Engine Runtime" option is reversible. | <!--- game_engine_decompile_runtime -->1.0<!--- / --> |
-| [GameEngine_LegacyStart](https://github.com/qwenger/BAddons/blob/master/GameEngine_LegacyStart/game_engine_legacy_start.py) | Re-enables the 2.73-deleted option of starting the BGE from any rendering mode by pressing the P-Key in the 3D view. | <!--- game_engine_legacy_start -->1.1<!--- / --> |
-| [Node_LocationPanel](https://github.com/qwenger/BAddons/blob/master/Node_LocationPanel/node_location_panel.py) | Displays the exact position of a node in its 2D space; this is more of a demo addon, probably useless to most of the users. | <!--- node_location_panel -->1.1<!--- / --> |
+| [3DView_BorderLines_BMeshEdition](https://github.com/qwenger/BAddons/blob/master/3DView_BorderLines_BMeshEdition/3dview_border_lines_bmesh_edition.py) | Provides a way to highlight border lines (edges connected to exactly one face) of Blender meshes to help checking topology. | [](3dview_border_lines_bmesh_edition)1.9[](/) |
+| [3DView_MeshStatistics](https://github.com/qwenger/BAddons/blob/master/3DView_MeshStatistics/3dview_mesh_statistics.py) | Computes some information about current Blender mesh, i.e. volume, area, position of the center of mass. | [](3dview_mesh_statistics)1.0[](/) |
+| [3DView_SynchronizeViews](https://github.com/qwenger/BAddons/blob/master/3DView_SynchonizeViews/3dview_synchronize_views.py) | Provides an option to lock viewpoint in a Blender 3D view region to the one of another view region. This addon is currently under heavy rewriting. | [](3dview_synchronize_views)1.0[](/) |
+| [GameEngine_DecompileRuntime](https://github.com/qwenger/BAddons/blob/master/GameEngine_DecompileRuntime/game_engine_decompile_runtime.py) | Re-extracts the original .blend file out of a runtime executable BlenderPlayer file; this i.e. proves that the "save as Game Engine Runtime" option is reversible. | [](game_engine_decompile_runtime)1.0[](/) |
+| [GameEngine_LegacyStart](https://github.com/qwenger/BAddons/blob/master/GameEngine_LegacyStart/game_engine_legacy_start.py) | Re-enables the 2.73-deleted option of starting the BGE from any rendering mode by pressing the P-Key in the 3D view. | [](game_engine_legacy_start)1.1[](/) |
+| [Node_LocationPanel](https://github.com/qwenger/BAddons/blob/master/Node_LocationPanel/node_location_panel.py) | Displays the exact position of a node in its 2D space; this is more of a demo addon, probably useless to most of the users. | [](node_location_panel)1.1[](/) |
 
