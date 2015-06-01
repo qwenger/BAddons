@@ -35,7 +35,7 @@ Link: [`matpi_addons_collection.py`](https://github.com/qwenger/BAddons/blob/mas
 ## Description of the addons
 
 | Name    | Description | Current version |
-|---------|-------------|-----------------|
+|---------|-------------|:---------------:|
 | [3DView_BorderLines_BMeshEdition](https://github.com/qwenger/BAddons/blob/master/3DView_BorderLines_BMeshEdition/3dview_border_lines_bmesh_edition.py) | Provides a way to highlight border lines (edges connected to exactly one face) of Blender meshes to help checking topology. | [](3dview_border_lines_bmesh_edition)1.9[](/) |
 | [3DView_MeshStatistics](https://github.com/qwenger/BAddons/blob/master/3DView_MeshStatistics/3dview_mesh_statistics.py) | Computes some information about current Blender mesh, i.e. volume, area, position of the center of mass. | [](3dview_mesh_statistics)1.0[](/) |
 | [3DView_SynchronizeViews](https://github.com/qwenger/BAddons/blob/master/3DView_SynchonizeViews/3dview_synchronize_views.py) | Provides an option to lock viewpoint in a Blender 3D view region to the one of another view region. This addon is currently under heavy rewriting. | [](3dview_synchronize_views)1.0[](/) |
