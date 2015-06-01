@@ -18,7 +18,7 @@ Le dépôt est organisé comme suit:
 
 Dossier principal:
 
-- divers fichiers liés au dépôt (`.gitignore`, des `README`, `LICENCE`)
+- divers fichiers liés au dépôt (`.gitignore`, des `README`, `LICENSE`).
 - un fichier [Pickle](https://docs.python.org/3/library/pickle.html), `ADDONS_LIST.pkl`, qui contient une représentation sérialisée de la structure du dépôt; il est utilisé par le fichier suivant:
 - un addon Python, [`matpi_addons_collection.py`](https://github.com/qwenger/BAddons/blob/master/matpi_addons_collection.py), qui a pour but de faciliter le maniement des autres (téléchargement, mise à jour, suppression, etc.). Voir ci-dessous.
 - divers dossiers, contenant chacun un addon Python. Voir plus bas pour plus d'informations à propos de chaque addon.
@@ -27,7 +27,7 @@ Dossier principal:
 
 L'addon `Addons Collection`, parfois appelé *addon maître* ou *addon master*, a été écrit dans le but de fournir aux utilisateurs une gestion simplifiée des addons de ce dépôt dans leur propre configuration de Blender, p.ex. pour garder les addons à jour par rapport à la dernière version sortie.
 
-De ce fait, un utilisateur de ce script ne doit télécharger et installer à la main que celui-ci, qui une fois activé dans Blender affiche des options pour télécharger et installer les autres de manière très simple et rapide.
+Ainsi, un utilisateur de ce script ne doit télécharger et installer à la main que celui-ci, qui une fois activé dans Blender affiche des options pour télécharger et installer les autres de manière très simple et rapide.
 
 L'utilisation de cet addon maître est fortement recommandée pour une utilisation optimale des éléments de BAddons. Bien entendu, il est également possible de télécharger chaque addon séparément.
 
