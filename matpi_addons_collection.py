@@ -25,7 +25,7 @@
 bl_info = {"name": "Matpi's Add-ons Collection (Configurator)",
            "description": "Global configurator and downloader for Matpi's addons collection",
            "author": "Quentin Wenger (Matpi)",
-           "version": (1, 0),
+           "version": (1, 1),
            "blender": (2, 73, 0),
            "location": "User Preferences -> Add-ons -> Matpi's Addons Collection (Configurator) -> Preferences",
            "warning": "",
@@ -38,11 +38,17 @@ bl_info = {"name": "Matpi's Add-ons Collection (Configurator)",
 base_url = "https://raw.githubusercontent.com/qwenger/BAddons/master/%s"
 addons_list_name = "ADDONS_LIST.pkl"
 prefs_name = "PREFERENCES.pkl"
+self_name = "matpi_addons_collection.py"
 
 
 #TODO: props to redefault at unregister
 # -> matpiaddonprops
 # -> really wanted?
+
+#TODO: is_expanded as attr of addonwrapper
+# -> operators (expand, unexpand)
+# -> no need for addons_list
+# -> ATM kept because maybe other per-addon bpy props needed?
 
 import bpy
 import addon_utils
@@ -53,7 +59,10 @@ import urllib.error
 import urllib.request
 import pickle
 import importlib
-import collections
+
+
+
+addons = {}
 
 
 
@@ -70,11 +79,8 @@ class ReportOperator(bpy.types.Operator):
         return True
 
     def execute(self, context):
-
         self.report({self.report_icon}, self.report_text)
-
         return {'FINISHED'}
-
     
     def invoke(self, context, event):
         wm = context.window_manager
@@ -83,7 +89,6 @@ class ReportOperator(bpy.types.Operator):
     def draw(self, context):
         self.layout.label("Refreshing Info")
         row = self.layout.row()
-
         row.label(icon=self.report_icon, text=self.report_text)
 
     
@@ -107,7 +112,7 @@ def reportPathNotEmpty():
 def retrieveFileFromURL(url):
 
     try:
-        return urllib.request.urlopen(url).read().decode()
+        return urllib.request.urlopen(url).read().decode().replace("\r\n", "\n")
 
     except urllib.error.URLError:
         reportConnectivityError()
@@ -174,15 +179,12 @@ def retrieveLocalRepoStructure():
 
 
 def installAddonFolder(struct, local_path, online_path):
-
     try:
         os.mkdir(local_path)
     except FileNotFoundError:
         return False
 
-
     for file_ in struct["_files"]:
-
         data = retrieveFileFromURL(online_path % file_)
 
         if data is None:
@@ -190,34 +192,35 @@ def installAddonFolder(struct, local_path, online_path):
 
         with open(os.path.join(local_path, file_), "w") as f:
             f.write(data)
-
-            
+    
     for dir_ in struct["_dirs"]:
         success = installAddonFolder(struct["_dirs"][dir_], os.path.join(local_path, dir_), online_path % (dir_ + "%s"))
 
         if not success:
             return False
 
+    return True
+
+
+def installFile(local_path, online_path):
+    data = retrieveFileFromURL(online_path)
+
+    if data is None:
+        return False
+
+    with open(local_path, "w") as f:
+        f.write(data)
 
     return True
 
 
-
-
-
 class StaticPreferences(object):
-
     def __init__(self):
-
         self.initialized = False
-
         self.addons_enabled = []
 
 
-
-
 def retrieveStaticPreferences(default_addons_path=None):
-
     if default_addons_path is None:
         addons_path = bpy.context.window_manager.matpi_addons_props.addons_path
     else:
@@ -226,52 +229,28 @@ def retrieveStaticPreferences(default_addons_path=None):
     name = os.path.join(addons_path, prefs_name)
 
     if os.path.exists(name):
-
         with open(name, "rb") as f:
-
             return pickle.load(f)
-
     else:
         return StaticPreferences()
 
 
-
 def saveStaticPreferences(static_pref):
-
     addons_path = bpy.context.window_manager.matpi_addons_props.addons_path
-
     name = os.path.join(addons_path, prefs_name)
 
     if os.path.exists(addons_path):
-
         with open(name, "wb") as f:
-
             pickle.dump(static_pref, f, 4)
 
-
-
-
-
-
-
-
-
-
-
-
+        
 
 class MatpiAddonWrapper(object):
-
         
-    #active
-        
-    def __init__(self, index, name, info, is_installed=False):
-
-        self.index = index
+    def __init__(self, addon_name, info, is_installed=False):
 
         self.is_installed = is_installed
-
-        self.name = name
+        self.name = addon_name
 
         self.file_name = None
 
@@ -282,11 +261,16 @@ class MatpiAddonWrapper(object):
 
         self.is_updatable = False
 
+        self.is_enabled = False
+
         self.mod = None
+
+        self.index = id(self)
 
         class EnableAddonOperator(bpy.types.Operator):
             bl_idname = "wm.mcollection_addon_enable%s" % self.index
             bl_label = "Enable"
+            bl_options = {'INTERNAL'}
 
             @classmethod
             def poll(cls, context):
@@ -300,6 +284,7 @@ class MatpiAddonWrapper(object):
         class DisableAddonOperator(bpy.types.Operator):
             bl_idname = "wm.mcollection_addon_disable%s" % self.index
             bl_label = "Disable"
+            bl_options = {'INTERNAL'}
 
             @classmethod
             def poll(cls, context):
@@ -313,6 +298,7 @@ class MatpiAddonWrapper(object):
         class InstallAddonOperator(bpy.types.Operator):
             bl_idname = "wm.mcollection_addon_install%s" % self.index
             bl_label = "Install"
+            bl_options = {'INTERNAL'}
 
             @classmethod
             def poll(cls, context):
@@ -327,6 +313,7 @@ class MatpiAddonWrapper(object):
         class UninstallAddonOperator(bpy.types.Operator):
             bl_idname = "wm.mcollection_addon_uninstall%s" % self.index
             bl_label = "Uninstall"
+            bl_options = {'INTERNAL'}
 
             @classmethod
             def poll(cls, context):
@@ -340,6 +327,7 @@ class MatpiAddonWrapper(object):
         class UpdateAddonOperator(bpy.types.Operator):
             bl_idname = "wm.mcollection_addon_update%s" % self.index
             bl_label = "Update"
+            bl_options = {'INTERNAL'}
 
             @classmethod
             def poll(cls, context):
@@ -354,54 +342,28 @@ class MatpiAddonWrapper(object):
                 return {'FINISHED'}
 
 
-        self.EnableAddonOperator = EnableAddonOperator
-        self.DisableAddonOperator = DisableAddonOperator
-        self.InstallAddonOperator = InstallAddonOperator
-        self.UninstallAddonOperator = UninstallAddonOperator
-        self.UpdateAddonOperator = UpdateAddonOperator
+        self.operators = (
+            EnableAddonOperator,
+            DisableAddonOperator,
+            InstallAddonOperator,
+            UninstallAddonOperator,
+            UpdateAddonOperator)
 
 
         self.register()
         
 
-
-    def refToSelf(self, key):
-        return key + str(self.index)
-
-
-    def get_is_expanded(self):
-        props = bpy.context.window_manager.matpi_addons_props
-        return getattr(props, self.refToSelf("is_expanded"))
-
-    def set_is_expanded(self, value):
-        props = bpy.context.window_manager.matpi_addons_props
-        setattr(props, self.refToSelf("is_expanded"), value)
-
-    is_expanded = property(get_is_expanded, set_is_expanded)
-    
-
-    def get_is_enabled(self):
-        props = bpy.context.window_manager.matpi_addons_props
-        return getattr(props, self.refToSelf("is_enabled"))
-
-    def set_is_enabled(self, value):
-        props = bpy.context.window_manager.matpi_addons_props
-        setattr(props, self.refToSelf("is_enabled"), value)
-
-    is_enabled = property(get_is_enabled, set_is_enabled)
-        
     
     def draw(self, context, layout):
-
-        props = context.window_manager.matpi_addons_props
-
-        
         box = layout.box()
-
         top_row = box.row()
 
-        if self.is_expanded:
-            top_row.prop(props, self.refToSelf("is_expanded"), icon='TRIA_DOWN',
+        for prop in context.window_manager.matpi_addons_list:
+            if prop.addon_name == self.name:
+                break
+
+        if prop.is_expanded:
+            top_row.prop(prop, "is_expanded", icon='TRIA_DOWN',
                 icon_only=True, text="", emboss=False)
 
             col = box.column()
@@ -417,12 +379,12 @@ class MatpiAddonWrapper(object):
             if self.local_version:
                 split = col.row().split(percentage=0.15)
                 split.label(text="Local Version:")
-                split.label(text='.'.join(str(x) for x in self.local_version), translate=False)
+                split.label(text=".".join(str(n) for n in self.local_version), translate=False)
 
             if self.online_version:
                 split = col.row().split(percentage=0.15)
                 split.label(text="Online Version:")
-                split.label(text='.'.join(str(x) for x in self.online_version), translate=False)
+                split.label(text=".".join(str(n) for n in self.online_version), translate=False)
             
             if self.info["warning"]:
                 split = col.row().split(percentage=0.15)
@@ -430,22 +392,17 @@ class MatpiAddonWrapper(object):
                 split.label(text='  ' + self.info["warning"], icon='ERROR')
             
         else:
-            top_row.prop(props, self.refToSelf("is_expanded"), icon='TRIA_RIGHT',
+            top_row.prop(prop, "is_expanded", icon='TRIA_RIGHT',
                 icon_only=True, text="", emboss=False)
 
         
         split = top_row.split(percentage=0.6)
 
-
         split.label(text=self.info["name"])
-
         sub_row = split.row()
 
-
         if self.is_installed:
-
             sub_sub_row = sub_row.row(align=True)
-    
             sub_sub_row.operator("wm.mcollection_addon_uninstall%s" % self.index, icon='X')
 
             if self.is_updatable:
@@ -454,106 +411,49 @@ class MatpiAddonWrapper(object):
             if self.is_enabled:
                 sub_row.operator("wm.mcollection_addon_disable%s" % self.index, icon='CHECKBOX_HLT',
                     text="", emboss=False)
-                #sub_row.prop(props, self.refToSelf("is_enabled"), icon='CHECKBOX_HLT',
-                #    icon_only=True, text="", emboss=False)
-
+                
             else:
                 sub_row.operator("wm.mcollection_addon_enable%s" % self.index, icon='CHECKBOX_DEHLT',
                     text="", emboss=False)
-                #sub_row.prop(props, self.refToSelf("is_enabled"), icon='CHECKBOX_DEHLT',
-                #    icon_only=True, text="", emboss=False)
 
         else:
             sub_row.operator("wm.mcollection_addon_install%s" % self.index, icon='NLA_PUSHDOWN')
 
-
-
-        
-
-
-
     
     def register(self):
-
-        classes = (
-            self.EnableAddonOperator,
-            self.DisableAddonOperator,
-            self.InstallAddonOperator,
-            self.UninstallAddonOperator,
-            self.UpdateAddonOperator
-            )
-
-        for c in classes:
+        for op in self.operators:
             try:
-                bpy.utils.register_class(c)
+                bpy.utils.register_class(op)
             except RuntimeError:
-                pass
-
-        #self.update(self.activated, None)
+                print("Could not register: %s" % op.bl_idname)
 
 
     def unregister(self):
-
-        #getattr(bpy.ops.wm, "mcollection_addon_delete_" + self.addon_name)()
-
-        classes = (
-            self.EnableAddonOperator,
-            self.DisableAddonOperator,
-            self.InstallAddonOperator,
-            self.UninstallAddonOperator,
-            self.UpdateAddonOperator
-            )
-
-        for c in classes:
+        for op in self.operators:
             try:
-                bpy.utils.unregister_class(c)
+                bpy.utils.unregister_class(op)
             except RuntimeError:
-                pass
+                print("Could not unregister: %s" % op.bl_idname)
     
 
-
-    
     def update(self, context):
-
         status = self.is_enabled
 
         self.uninstall(context)
-
         self.install(context)
-
 
         self.is_updatable = False
 
         if status:
             self.enable()
 
-        """
-        if prop:
-            self.addon = __import__(self.addon_name)
-
-            self.name = self.addon.bl_info["name"]
-
-            self.version = self.addon.bl_info["version"]
-
-            self.addon.register()
-
-        else:
-            self.addon.unregister()
-        """
-
-        
-
 
     def install(self, context):
-
         online_struct = retrieveOnlineRepoStructure()
 
         if online_struct is not None:
-
             path = bpy.context.window_manager.matpi_addons_props.addons_path
-
             local_path = os.path.join(path, self.name)
-
             online_path = base_url % (self.name + "/%s")
 
             success = installAddonFolder(online_struct["_addons"][self.name], local_path, online_path)
@@ -566,24 +466,17 @@ class MatpiAddonWrapper(object):
                 return
 
             self.info = online_struct["_addons"][self.name]["_info"]
-
             self.online_version = self.info["version"]
             self.local_version = self.online_version
 
-
             self.is_enabled = False
-
             self.is_installed = True
             
 
             bpy.ops.wm.matpi_addons_refresh()
 
 
-
-
-        
     def uninstall(self, context):
-
         if self.is_enabled:
             self.disable()
 
@@ -595,7 +488,6 @@ class MatpiAddonWrapper(object):
             pass
 
         self.is_enabled = False
-
         self.is_installed = False
 
 
@@ -603,9 +495,7 @@ class MatpiAddonWrapper(object):
 
         path = bpy.context.window_manager.matpi_addons_props.addons_path
 
-
         try:
-            
             if os.path.exists(os.path.join(path, self.name, "__init__.py")):
                 self.file_name = self.name
 
@@ -627,8 +517,6 @@ class MatpiAddonWrapper(object):
             pass
 
 
-        
-
     def disable(self):
 
         if self.mod is not None:
@@ -644,170 +532,140 @@ class MatpiAddonWrapper(object):
         
 
 
-
-
-
-
 class InitializeOperator(bpy.types.Operator):
-        bl_idname = "wm.matpi_addons_initialize"
-        bl_label = "Initialize"
-
-        @classmethod
-        def poll(cls, context):
-            return True
-
-        def execute(self, context):
-
-            props = context.window_manager.matpi_addons_props
-            
-
-            if not os.path.exists(props.addons_path):
-                os.makedirs(props.addons_path)
-                
-                self.report({'INFO'}, "Created folder %s" % props.addons_path)
-
-            if not props.addons_path in sys.path:
-                sys.path.append(props.addons_path)
-
-
-            props.initialized = True
-
-            static_prefs = retrieveStaticPreferences()
-            static_prefs.initialized = True
-            saveStaticPreferences(static_prefs)
-
-            return {'FINISHED'}
-
-
-
-class RefreshOperator(bpy.types.Operator):
-    bl_idname = "wm.matpi_addons_refresh"
-    bl_label = "Refresh"
+    bl_idname = "wm.matpi_addons_initialize"
+    bl_label = "Initialize"
+    bl_options = {'INTERNAL'}
 
     @classmethod
     def poll(cls, context):
         return True
 
     def execute(self, context):
+        props = context.window_manager.matpi_addons_props
+            
+        if not os.path.exists(props.addons_path):
+            os.makedirs(props.addons_path)    
+            self.report({'INFO'}, "Created folder %s" % props.addons_path)
+
+        if not props.addons_path in sys.path:
+            sys.path.append(props.addons_path)
+
+        props.initialized = True
+
+        static_prefs = retrieveStaticPreferences()
+        static_prefs.initialized = True
+        saveStaticPreferences(static_prefs)
+
+        return {'FINISHED'}
+
+
+
+class RefreshOperator(bpy.types.Operator):
+    bl_idname = "wm.matpi_addons_refresh"
+    bl_label = "Refresh"
+    bl_options = {'INTERNAL'}
+
+    @classmethod
+    def poll(cls, context):
+        props = context.window_manager.matpi_addons_props
+        return props.initialized
+
+    def execute(self, context):
+
+        # update addons infos from online repo
 
         online_struct = retrieveOnlineRepoStructure()
 
         props = context.window_manager.matpi_addons_props
+        addons_list = context.window_manager.matpi_addons_list
 
         if online_struct is None:
             connected = False
 
         else:
             connected = True
-            for addon in online_struct["_addons"]:
-                if addon in props.addons:
-                    props.addons[addon].info = online_struct["_addons"][addon]["_info"]
+            for addon_name in online_struct["_addons"]:
+                if addon_name in addons:
+                    addon_wrapper = addons[addon_name]
+                    addon_wrapper.info = online_struct["_addons"][addon_name]["_info"]
                 else:
-                    i = len(props.addons)
+                    addon_wrapper = MatpiAddonWrapper(addon_name, online_struct["_addons"][addon_name]["_info"], False)
+                    addons[addon_name] = addon_wrapper
+                    addon_prop = addons_list.add()
+                    addon_prop.addon_name = addon_name
 
-                    props.__class__.addons[addon] = MatpiAddonWrapper(i, addon, online_struct["_addons"][addon]["_info"], False)
+                addon_wrapper.online_version = online_struct["_addons"][addon_name]["_info"]["version"]
 
-                    pp = bpy.props.BoolProperty(
-                        name="is_expanded",
-                        description="",
-                        default=False)
+        # update the master from online repo
 
-                    setattr(props.__class__, "is_expanded%s" % i, pp)
+        online_version = online_struct["_system_files"][self_name]
+        props.online_version = ".".join(str(n) for n in online_version)
 
-                    pp = bpy.props.BoolProperty(
-                        name="is_enabled",
-                        description="",
-                        default=False)
+        if online_version > bl_info["version"]:
+            props.updatable = True
 
-                    setattr(props.__class__, "is_enabled%s" % i, pp)
-
-                props.addons[addon].online_version = online_struct["_addons"][addon]["_info"]["version"]
-                    
-
+        # update addons infos from local repo
 
         local_struct = retrieveLocalRepoStructure()
 
-        for addon, info in local_struct.items():
-
-            if addon in props.addons:
-                props.addons[addon].info = info
+        for addon_name, info in local_struct.items():
+            if addon_name in addons:
+                addon_wrapper = addons[addon_name]
+                addon_wrapper.info = info
 
             else:
-                i = len(props.addons)
+                addon_wrapper = MatpiAddonWrapper(addon_name, info, False)
+                addons[addon_name] = addon_wrapper
+                addon_prop = addons_list.add()
+                addon_prop.addon_name = addon_name
 
-                props.__class__.addons[addon] = MatpiAddonWrapper(i, addon, info, False)
+            addon_wrapper.local_version = info["version"]
+            addon_wrapper.is_updatable = tuple(addon_wrapper.online_version) > tuple(addon_wrapper.local_version)
 
-                pp = bpy.props.BoolProperty(
-                    name="is_expanded",
-                    description="",
-                    default=False)
-
-                setattr(props.__class__, "is_expanded%s" % i, pp)
-
-                pp = bpy.props.BoolProperty(
-                    name="is_enabled",
-                    description="",
-                    default=False)
-
-                setattr(props.__class__, "is_enabled%s" % i, pp)
-
-            props.addons[addon].local_version = info["version"]
-
-
-        props.addons[addon].is_updatable = tuple(props.addons[addon].online_version) > tuple(props.addons[addon].local_version)
-
+                
+        # delete outdated addons (only if connected)
 
         if connected:
-
-            for name, addon in props.addons.items():
-
+            for addon_prop in addons_list:
+                name = addon_prop.addon_name
                 if name not in online_struct["_addons"] and name not in local_struct:
-
-                    i = addon.index
-
-                    addon.disable()
-                    addon.unregister()
-
-                    del props.__class__.addons[name]
-
-                    delattr(props.__class__, "is_expanded%s" % i)
-                    delattr(props.__class__, "is_enabled%s" % i)
-
-        
-        
-        #self.report({'INFO'}, str(count) + " files created at: " + context.scene.MultiOutputDir)
+                    addons[name].disable()
+                    addons[name].unregister()
+                    del addons[name]
+                    addons_list.remove(addon_prop)
 
         return {'FINISHED'}
+
 
 class InstallAllOperator(bpy.types.Operator):
     bl_idname = "wm.matpi_addons_installall"
     bl_label = "Install All"
+    bl_options = {'INTERNAL'}
 
     @classmethod
     def poll(cls, context):
-        props = context.window_manager.matpi_addons_props
-        return any(not addon.is_installed for addon in props.addons.values())
+        return any(not addon.is_installed for addon in addons.values())
 
     def execute(self, context):
-        props = context.window_manager.matpi_addons_props
-        for addon in props.addons.values():
+        for addon in addons.values():
             if not addon.is_installed:
                 addon.install(context)
         
         return {'FINISHED'}
 
+
 class UninstallAllOperator(bpy.types.Operator):
     bl_idname = "wm.matpi_addons_uninstallall"
     bl_label = "Uninstall All"
+    bl_options = {'INTERNAL'}
 
     @classmethod
     def poll(cls, context):
-        props = context.window_manager.matpi_addons_props
-        return any(addon.is_installed for addon in props.addons.values())
+        return any(addon.is_installed for addon in addons.values())
 
     def execute(self, context):
-        props = context.window_manager.matpi_addons_props
-        for addon in props.addons.values():
+        for addon in addons.values():
             if addon.is_installed:
                 addon.uninstall(context)
                 
@@ -819,15 +677,14 @@ class UninstallAllOperator(bpy.types.Operator):
 class EnableAllOperator(bpy.types.Operator):
     bl_idname = "wm.matpi_addons_enableall"
     bl_label = "Enable All Installed"
+    bl_options = {'INTERNAL'}
 
     @classmethod
     def poll(cls, context):
-        props = context.window_manager.matpi_addons_props
-        return any(not addon.is_enabled for addon in props.addons.values() if addon.is_installed)
+        return any(not addon.is_enabled for addon in addons.values())
 
     def execute(self, context):
-        props = context.window_manager.matpi_addons_props
-        for addon in props.addons.values():
+        for addon in addons.values():
             if addon.is_installed and not addon.is_enabled:
                 addon.enable()
         
@@ -837,15 +694,14 @@ class EnableAllOperator(bpy.types.Operator):
 class DisableAllOperator(bpy.types.Operator):
     bl_idname = "wm.matpi_addons_disableall"
     bl_label = "Disable All Installed"
+    bl_options = {'INTERNAL'}
 
     @classmethod
     def poll(cls, context):
-        props = context.window_manager.matpi_addons_props
-        return any(addon.is_enabled for addon in props.addons.values() if addon.is_installed)
+        return any(addon.is_enabled for addon in addons.values() if addon.is_installed)
 
     def execute(self, context):
-        props = context.window_manager.matpi_addons_props
-        for addon in props.addons.values():
+        for addon in addons.values():
             if addon.is_installed and addon.is_enabled:
                 addon.disable()
         
@@ -855,18 +711,16 @@ class DisableAllOperator(bpy.types.Operator):
 class UpdateAllOperator(bpy.types.Operator):
     bl_idname = "wm.matpi_addons_updateall"
     bl_label = "Update All Installed"
+    bl_options = {'INTERNAL'}
 
     @classmethod
     def poll(cls, context):
-        props = context.window_manager.matpi_addons_props
-        return any(addon.is_updatable for addon in props.addons.values() if addon.is_installed)
+        return any(addon.is_updatable for addon in addons.values() if addon.is_installed)
 
     def execute(self, context):
-        props = context.window_manager.matpi_addons_props
-        for addon in props.addons.values():
+        for addon in addons.values():
             if addon.is_installed and addon.is_updatable:
                 addon.update(context)
-        #self.report({'INFO'}, str(count) + " files created at: " + context.scene.MultiOutputDir)
 
         bpy.ops.wm.matpi_addons_refresh()
 
@@ -874,43 +728,83 @@ class UpdateAllOperator(bpy.types.Operator):
 
 
 
+class UpdateMasterOperator(bpy.types.Operator):
+    bl_idname = "wm.matpi_addons_updatemaster"
+    bl_label = "Update Configurator"
+    bl_options = {'INTERNAL'}
+
+    @classmethod
+    def poll(cls, context):
+        props = context.window_manager.matpi_addons_props
+        return props.updatable
+
+    def execute(self, context):
+        props = context.window_manager.matpi_addons_props
+
+        path = props.addons_path
+        local_path = os.path.join(path, self_name)
+        online_path = base_url % self_name
+
+        success = installFile(local_path, online_path)
+
+        if not success:
+            try:
+                shutil.rmtree(local_path)
+            except FileNotFoundError:
+                pass
+            return {'CANCELLED'}
+
+        props.updatable = False
+
+        return {'FINISHED'}
 
 
 
 class RemoveFolderOperator(bpy.types.Operator):
     bl_idname = "wm.matpi_addons_removefolder"
     bl_label = "Remove Folder"
+    bl_options = {'INTERNAL'}
 
     @classmethod
     def poll(cls, context):
         return context.window_manager.matpi_addons_props.initialized
 
     def execute(self, context):
-
         props = context.window_manager.matpi_addons_props
 
-        for addon in props.addons.values():
+        for addon in addons.values():
             if addon.is_installed:
-                addon.uninstall(bpy.context)
+                addon.uninstall(context)
             #addon.unregister()
 
         try:
             shutil.rmtree(props.addons_path)
         except FileNotFoundError:
             pass
-        """
-        if not os.listdir(props.addons_path):
-            os.rmdir(props.addons_path)
-
-        else:
-            reportPathNotEmpty()
-        """
         
         props.initialized = False
         
         return {'FINISHED'}
 
 
+
+class CopyFilePathOperator(bpy.types.Operator):
+    bl_idname = "wm.matpi_addons_copyfilepath"
+    bl_label = "Copy File Path"
+    bl_description = "Click to copy Path to Clipboard"
+    bl_options = {'INTERNAL'}
+
+    @classmethod
+    def poll(cls, context):
+        props = context.window_manager.matpi_addons_props
+        return props.initialized and props.online_version > ".".join(str(n) for n in bl_info["version"]) and not props.updatable
+
+    def execute(self, context):
+        props = context.window_manager.matpi_addons_props
+        text = os.path.join(props.addons_path, self_name)
+        context.window_manager.clipboard = text
+        self.report({'INFO'}, "Copied Path to Clipboard")
+        return {'FINISHED'}
 
 
 
@@ -919,16 +813,11 @@ class MatpiAddonsCollectionPreferences(bpy.types.AddonPreferences):
 
 
     def draw(self, context):
-
-        
         layout = self.layout
-
-
+        
         props = context.window_manager.matpi_addons_props
 
-        
         if props.initialized:
-
             row = layout.row()
 
             split = row.split(percentage=0.15)
@@ -937,13 +826,21 @@ class MatpiAddonsCollectionPreferences(bpy.types.AddonPreferences):
             split2.label(text=props.addons_path)
             split2.operator("wm.matpi_addons_removefolder", icon='CANCEL')
 
+            if props.online_version > ".".join(str(n) for n in bl_info["version"]):
+                layout.separator()
+                if props.updatable:
+                    row = layout.row()
+                    split = row.split()
+                    split.label(text="Online Version is newer (%s)." % props.online_version, icon='INFO')
+                    split.operator("wm.matpi_addons_updatemaster")
+                else:
+                    col = layout.column()
+                    col.label(text="Master Addon updated on disk, you should reinstall it from path (click to copy to Clipboard):", icon='ERROR')
+                    col.operator("wm.matpi_addons_copyfilepath", text=os.path.join(props.addons_path, self_name), emboss=False)
+
             layout.separator()
-
+            
             row = layout.row()
-
-            #row.label(text="")
-
-
             split = row.split()
 
             col = split.column()
@@ -959,39 +856,18 @@ class MatpiAddonsCollectionPreferences(bpy.types.AddonPreferences):
             col.operator("wm.matpi_addons_disableall", icon='CHECKBOX_DEHLT')
 
 
-            #row.operator("wm.mcollection_addons_update_master")
-
-
             layout.separator()
 
-            for addon in props.addons.values():
+            for addon in addons.values():
                 addon.draw(context, layout)
 
-                """
-                row = layout.row()
-                
-                row.layout(text=addon.name)
-
-                if addon.downloaded:
-                    row.operator("wm.mcollection_addon_delete_" + addon.addon_name)
-                    row.prop(addon, "activated")
-
-                else:
-                    row.operator("wm.mcollection_addon_download_" + addon.addon_name)
-                """
-    
-            #row.operator("wm.matpi_addons_add")
-
         else:
+            col = layout.column()
+            col.label("The addons will be saved in:")
+            col.label("%s" % props.addons_path)
 
-            row = layout.row(align=True)
-
-            split = row.split(percentage=0.1)
-            split.label("Path: ")
-            split.prop(props, "addons_path", text="")
-
-            row2 = layout.row()
-            row2.operator("wm.matpi_addons_initialize")
+            row = layout.row()
+            row.operator("wm.matpi_addons_initialize")
     
         
 
@@ -1018,18 +894,25 @@ class MatpiAddonsCollectionPreferences(bpy.types.AddonPreferences):
 
 
 def register():
-    """
-    bpy.utils.register_class(FindMasterAddonsOperator)
-    """
-
 
     default_addons_path = os.path.normpath(
         os.path.join(bpy.utils.script_paths()[-1], "matpi_addons"))
 
     static_prefs = retrieveStaticPreferences(default_addons_path)
     
-    #bpy.utils.register_class(MatpiAddonsCollectionPreferences)
-    #bpy.utils.register_class(MatpiAddonWrapper)
+
+    class MatpiAddon(bpy.types.PropertyGroup):
+
+        addon_name = bpy.props.StringProperty(
+            name="Addon Name",
+            description="",
+            default="")
+
+        is_expanded = bpy.props.BoolProperty(
+            name="is_expanded",
+            description="",
+            default=False)
+        
 
     class MatpiAddonsProps(bpy.types.PropertyGroup):
         """
@@ -1044,105 +927,49 @@ def register():
             name="Path",
             description="",
             default=default_addons_path)
-        
-        addons = collections.OrderedDict()#MatpiAddonWrapper(0),#MatpiAddonWrapper(1),
 
-        """
-        is_expanded0 = bpy.props.BoolProperty(
-            name="is_expanded",
-            description="adasd",
+        updatable = bpy.props.BoolProperty(
+            name="Updatable",
+            description="",
             default=False)
 
-        is_enabled0 = bpy.props.BoolProperty(
-            name="is_enabled",
-            description="adasd",
-            default=False)
-
-        
-        install0 = bpy.props.BoolProperty(
-            name="install",
-            description="adasd",
-            default=False)
-        
-        
-        is_expanded1 = bpy.props.BoolProperty(
-            name="is_expanded",
-            description="adasd",
-            default=False)
-
-        is_enabled1 = bpy.props.BoolProperty(
-            name="is_enabled",
-            description="adasd",
-            default=False)
-
-        
-        install1 = bpy.props.BoolProperty(
-            name="install",
-            description="adasd",
-            default=False)
-        """
+        online_version = bpy.props.StringProperty(
+            name="Online Version",
+            description="",
+            default=".".join(str(n) for n in bl_info["version"]))
         
 
     bpy.utils.register_module(__name__)
-    #MatpiAddonWrapper.register()
-    bpy.types.WindowManager.matpi_addons_props = bpy.props.PointerProperty(type=MatpiAddonsProps)
-    """
-    bpy.utils.register_class(HandleRetrieveError)
-    bpy.utils.register_class(RefreshAddonsOperator)
-    bpy.utils.register_class(UpdateMasterAddonsOperator)
-    """
 
-    ###
+    bpy.types.WindowManager.matpi_addons_props = bpy.props.PointerProperty(type=MatpiAddonsProps)
+    bpy.types.WindowManager.matpi_addons_list = bpy.props.CollectionProperty(type=MatpiAddon)
+
+    # retrieve local existing addons
+    
     addons_struct = retrieveLocalRepoStructure()
 
-    props = bpy.context.window_manager.matpi_addons_props
+    addons_list = bpy.context.window_manager.matpi_addons_list
         
-    for addon, info in addons_struct.items():
-
-        i = len(props.addons)
-
-        props.__class__.addons[addon] = MatpiAddonWrapper(i, addon, info, True)
-
-        pp = bpy.props.BoolProperty(
-            name="is_expanded",
-            description="",
-            default=False)
-
-        setattr(props.__class__, "is_expanded%s" % i, pp)
-
-        pp = bpy.props.BoolProperty(
-            name="is_enabled",
-            description="",
-            default=addon in static_prefs.addons_enabled)
-
-        setattr(props.__class__, "is_enabled%s" % i, pp)
-
-        props.addons[addon].local_version = info["version"]
-
-        if addon in static_prefs.addons_enabled:
-            props.addons[addon].enable()
+    for addon_name, info in addons_struct.items():
+        addon_wrapper = MatpiAddonWrapper(addon_name, info, True)
+        addon_wrapper.local_version = info["version"]
+        addons[addon_name] = addon_wrapper
+        
+        addon_prop = addons_list.add()
+        addon_prop.addon_name = addon_name
+        
+        if addon_name in static_prefs.addons_enabled:
+            addon_wrapper.enable()
         
 
 def unregister():
-    """
-    bpy.utils.unregister_class(FindMasterAddonsOperator)
-    """
-
-    props = bpy.context.window_manager.matpi_addons_props
-
-    for addon in props.addons.values():
+    for addon in addons.values():
         addon.unregister()
         
-
     bpy.utils.unregister_module(__name__)
-
-    #MatpiAddonWrapper.unregister()
 
     if hasattr(bpy.context.window_manager, "matpi_addons_props"):
         del bpy.types.WindowManager.matpi_addons_props
-    """
-    bpy.utils.unregister_class(HandleRetrieveError)
-    bpy.utils.unregister_class(RefreshAddonsOperator)
-    bpy.utils.unregister_class(UpdateMasterAddonsOperator)
-    """
+    if hasattr(bpy.context.window_manager, "matpi_addons_list"):
+        del bpy.types.WindowManager.matpi_addons_list
     

@@ -25,7 +25,7 @@
 bl_info = {"name": "Node Location Panel",
            "description": "Add a panel in the Node Editor with sliders for the location of the active node",
            "author": "Quentin Wenger (Matpi)",
-           "version": (1, 0),
+           "version": (1, 1),
            "blender": (2, 73, 0),
            "location": "Node Editor > Properties > Node Location",
            "warning": "",
@@ -84,7 +84,7 @@ class NodeLocationPanel(bpy.types.Panel):
 
 
 def register():
-    bpy.utils.register_class(NodeLocationPanel)
+    bpy.utils.register_module(__name__)
     
     bpy.types.Scene.node_location = bpy.props.FloatVectorProperty(name="Location",
                                                                   description="The location of active node in the Node Editor",
@@ -95,7 +95,7 @@ def register():
 
 
 def unregister():
-    bpy.utils.unregister_class(NodeLocationPanel)
+    bpy.utils.unregister_module(__name__)
 
     del bpy.types.Scene.node_location
 
