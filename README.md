@@ -1,13 +1,15 @@
 # BAddons
 Blender addons collection
 
+*Note: this documentation is also available in [French](https://github.com/qwenger/BAddons/blob/master/README_FR.md).*
+
 *Note: throughout this documentation, the syntax* "addon" *is being used.*
 
 ## About
 
 The `BAddons` repository contains addons (i.e. script snippets meant to extend functionality) for the 3D software [Blender](https://www.blender.org/).
 
-These addons are free and open-source (GPL-licensed, in version 2+), see [`LICENCE`](https://github.com/qwenger/BAddons/blob/master/LICENSE) for more information.
+These addons are free and open-source (GPL-licensed, in version 2+), see [`LICENSE`](https://github.com/qwenger/BAddons/blob/master/LICENSE) for more information.
 
 ## Structure of the repository
 
@@ -24,7 +26,7 @@ Main folder:
 
 The `Addons Collection` addon, sometimes refered to as *addon master*, has been written with the goal of providing to users a simplified way to manage addons of this repository within their own Blender configuration, f.ex. to keep them updated against latest released version.
 
-Thus, a user taking advantage of this script only needs to download and install that one per hand, which will once enabled in Blender display options to download and install others very quickly and easily.
+Thus, a user taking advantage of this script only needs to download and install that one per hand, which will once enabled in Blender displays options to download and install others very easily and quickly.
 
 Usage of this addon master is strongly recommended for a ultimate experience with BAddons items. Of course, downloading each addon separately is also possible.
 
