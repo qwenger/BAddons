@@ -17,7 +17,7 @@ The repository is organized as follows:
 
 Main folder:
 
-- general repository files (`.gitignore`, `README`'s, `LICENCE`)
+- general repository files (`.gitignore`, `README`'s, `LICENSE`).
 - a [Pickle](https://docs.python.org/3/library/pickle.html) file, `ADDONS_LIST.pkl`, which contains a serialized representation of the repo's structure; it is used by the next file:
 - a Python addon, [`matpi_addons_collection.py`](https://github.com/qwenger/BAddons/blob/master/matpi_addons_collection.py), which is intended to facilitate handling of others (dowloading, updating, deletion, etc.). See below.
 - various folders, containing each a Python addon. See below for more information about each addon.
