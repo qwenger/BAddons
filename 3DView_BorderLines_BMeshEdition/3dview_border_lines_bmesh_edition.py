@@ -113,7 +113,7 @@ def drawCallback():
                     else:
                         active = bm.select_history.active
                         for edge in bm.edges:
-                            if edge.is_valid and edge.is_boundary:
+                            if edge.is_valid and edge.is_boundary and not edge.hide:
                                 coords = [matrix_world*vert.co for vert in edge.verts]
 
                                 if active == edge:
