@@ -29,7 +29,7 @@ bl_info = {"name": "Border Lines - BMesh Edition",
                           "edges (freestyle, crease, seam, sharp, etc.), which are "\
                           "nevertheless shown normally.",
            "author": "Quentin Wenger (Matpi)",
-           "version": (1, 9),
+           "version": (1, 11),
            "blender": (2, 74, 0),
            "location": "3D View(s) -> Properties -> Shading",
            "warning": "",
@@ -47,13 +47,7 @@ from bgl import glBegin, glLineWidth, glColor3f, glColor4f, glVertex3f, glEnd, G
 import bmesh
 
 handle = []
-do_draw = [False]
-point_size = [3.0]
 bm_old = [None]
-use_custom_color = [False]
-custom_color = [(0.0, 1.0, 0.0)]
-finer_lines = [False]
-
 
 
 def drawColorSize(coords, color):
@@ -62,22 +56,25 @@ def drawColorSize(coords, color):
         glVertex3f(*coord)
 
 def drawCallback():
-    obj = bpy.context.object
-    if obj and obj.type == 'MESH' and obj.data:
-        if do_draw[0]:
-            mesh = obj.data
-            matrix_world = obj.matrix_world
-            settings = bpy.context.user_preferences.themes[0].view_3d
+                    
+    if bpy.context.mode == 'EDIT_MESH':
 
-            transform = settings.transform
-            edge_select = settings.edge_select
-            wire_edit = settings.wire_edit
-            wire = settings.wire
-            object_active = settings.object_active
+        obj = bpy.context.object
 
-            glLineWidth(point_size[0])
+        bl = obj.border_lines
+        if obj and obj.type == 'MESH' and obj.data:
+            if bl.borderlines_use:
+                mesh = obj.data
+                matrix_world = obj.matrix_world
+                settings = bpy.context.user_preferences.themes[0].view_3d
 
-            if bpy.context.mode == 'EDIT_MESH':
+                transform = settings.transform
+                edge_select = settings.edge_select
+                wire_edit = settings.wire_edit
+                wire = settings.wire
+                object_active = settings.object_active
+
+                glLineWidth(bl.borderlines_width)
 
                 draw_with_test = True
 
@@ -95,14 +92,14 @@ def drawCallback():
 
                     draw_with_test = False
 
-                    if finer_lines[0]:
-                        glLineWidth(point_size[0]/4.0)
+                    if bl.finer_lines_behind_use:
+                        glLineWidth(bl.borderlines_width/4.0)
                         draw_with_test = True
 
                     glBegin(GL_LINES)
 
-                    if use_custom_color[0]:
-                        glColor3f(*custom_color[0])
+                    if bl.custom_color_use:
+                        glColor3f(*bl.custom_color)
                         for edge in bm.edges:
                             if edge.is_valid and edge.is_boundary:
                                 coords = [matrix_world*vert.co for vert in edge.verts]
@@ -125,7 +122,7 @@ def drawCallback():
 
                     glEnd()
 
-                    glLineWidth(point_size[0])
+                    glLineWidth(bl.borderlines_width)
 
                     glEnable(GL_DEPTH_TEST)
 
@@ -135,8 +132,8 @@ def drawCallback():
                     glBegin(GL_LINES)
 
 
-                    if use_custom_color[0]:
-                        glColor3f(*custom_color[0])
+                    if bl.custom_color_use:
+                        glColor3f(*bl.custom_color)
                         for edge in bm.edges:
                             if edge.is_valid and edge.is_boundary:
                                 coords = [matrix_world*vert.co for vert in edge.verts]
@@ -161,71 +158,177 @@ def drawCallback():
 
                         
 
-            elif bpy.context.mode == 'OBJECT' and (obj.show_wire or bpy.context.space_data.viewport_shade == 'WIREFRAME'):
-                counts = edge_face_count(mesh)
+    elif bpy.context.mode == 'OBJECT':
+        for obj in bpy.context.visible_objects:
+            if obj and obj.type == 'MESH' and obj.data:
+                if (obj.show_wire or bpy.context.space_data.viewport_shade == 'WIREFRAME'):
+                    bl = obj.border_lines
 
-                glBegin(GL_LINES)
+                    if bl.borderlines_use:
+                        
+                        mesh = obj.data
+                        matrix_world = obj.matrix_world
+                        settings = bpy.context.user_preferences.themes[0].view_3d
 
-                if use_custom_color[0]:
-                    for edge, count in zip(mesh.edges, counts):
-                        # border edges
-                        if count == 1:
-                            coords = [matrix_world*Vector(mesh.vertices[i].co) for i in edge.key]
-                            glColor3f(*custom_color[0])
-                            for coord in coords:
-                                glVertex3f(*coord)
+                        wire = settings.wire
+                        object_selected = settings.object_selected
 
-                else:
-                    if obj.select:
+                        counts = edge_face_count(mesh)
+
+                        glLineWidth(bl.borderlines_width)
+
+                        glBegin(GL_LINES)
+
+                        if bl.custom_color_use:
+                            glColor3f(*bl.custom_color)
+                        elif obj == bpy.context.active_object and obj.select:
+                            glColor3f(*settings.object_active)
+                        elif obj.select:
+                            glColor3f(*settings.object_selected)
+                        else:
+                            glColor3f(*settings.wire)
+                            
                         for edge, count in zip(mesh.edges, counts):
                             # border edges
                             if count == 1:
                                 coords = [matrix_world*Vector(mesh.vertices[i].co) for i in edge.key]
-                                drawColorSize(coords, object_active)
-                    else:
-                        for edge, count in zip(mesh.edges, counts):
-                            # border edges
-                            if count == 1:
-                                coords = [matrix_world*Vector(mesh.vertices[i].co) for i in edge.key]
-                                drawColorSize(coords, wire)
-                    
-                glEnd()
-                
-            glLineWidth(1.0)
+                                for coord in coords:
+                                    glVertex3f(*coord)
+                            
+                        glEnd()
+        
+    glLineWidth(1.0)
 
 
+class BorderLinesCopyUseOperator(bpy.types.Operator):
+    bl_idname = "object.border_lines_copy_use"
+    bl_label = "Copy use"
+    bl_description = "Copy 'use' setting to all objects in the scene"
+    bl_options = {'INTERNAL'}
 
-def updateBGLData(self, context):
-    if self.borderlines_use:
-        do_draw[0] = True
-        point_size[0] = self.borderlines_width
-        use_custom_color[0] = self.custom_color_use
-        custom_color[0] = self.custom_color
-        finer_lines[0] = self.finer_lines_behind_use
-        return
+    @classmethod
+    def poll(cls, context):
+        return context.active_object is not None
 
-    do_draw[0] = False
+    def execute(self, context):
+        o = context.active_object
+        for obj in context.scene.objects:
+            # don't care about active object...
+            obj.border_lines.borderlines_use = o.border_lines.borderlines_use
+        context.area.tag_redraw()
+        return {'FINISHED'}
+
+class BorderLinesCopyWidthOperator(bpy.types.Operator):
+    bl_idname = "object.border_lines_copy_width"
+    bl_label = "Copy width"
+    bl_description = "Copy 'width' setting to all objects in the scene"
+    bl_options = {'INTERNAL'}
+
+    @classmethod
+    def poll(cls, context):
+        return context.active_object is not None
+
+    def execute(self, context):
+        o = context.active_object
+        for obj in context.scene.objects:
+            # don't care about active object...
+            obj.border_lines.borderlines_width = o.border_lines.borderlines_width
+        context.area.tag_redraw()
+        return {'FINISHED'}
+
+class BorderLinesCopyFinerOperator(bpy.types.Operator):
+    bl_idname = "object.border_lines_copy_finer"
+    bl_label = "Copy finer lines"
+    bl_description = "Copy 'finer lines' setting to all objects in the scene"
+    bl_options = {'INTERNAL'}
+
+    @classmethod
+    def poll(cls, context):
+        return context.active_object is not None
+
+    def execute(self, context):
+        o = context.active_object
+        for obj in context.scene.objects:
+            # don't care about active object...
+            obj.border_lines.finer_lines_behind_use = o.border_lines.finer_lines_behind_use
+        context.area.tag_redraw()
+        return {'FINISHED'}
+
+class BorderLinesCopyColorOperator(bpy.types.Operator):
+    bl_idname = "object.border_lines_copy_color"
+    bl_label = "Copy custom color"
+    bl_description = "Copy 'custom color' setting to all objects in the scene"
+    bl_options = {'INTERNAL'}
+
+    @classmethod
+    def poll(cls, context):
+        return context.active_object is not None
+
+    def execute(self, context):
+        o = context.active_object
+        for obj in context.scene.objects:
+            # don't care about active object...
+            obj.border_lines.custom_color = o.border_lines.custom_color
+        context.area.tag_redraw()
+        return {'FINISHED'}
+
+class BorderLinesCopyCustomOperator(bpy.types.Operator):
+    bl_idname = "object.border_lines_copy_custom"
+    bl_label = "Copy custom color use"
+    bl_description = "Copy 'custom color use' setting to all objects in the scene"
+    bl_options = {'INTERNAL'}
+
+    @classmethod
+    def poll(cls, context):
+        return context.active_object is not None
+
+    def execute(self, context):
+        o = context.active_object
+        for obj in context.scene.objects:
+            # don't care about active object...
+            obj.border_lines.custom_color_use = o.border_lines.custom_color_use
+        context.area.tag_redraw()
+        return {'FINISHED'}
+
+class BorderLinesCopySettingsOperator(bpy.types.Operator):
+    bl_idname = "object.border_lines_copy_settings"
+    bl_label = "Copy to all"
+    bl_description = "Copy all Border Lines settings to all objects in the scene"
+    bl_options = {'INTERNAL'}
+
+    @classmethod
+    def poll(cls, context):
+        return context.active_object is not None
+
+    def execute(self, context):
+        o = context.active_object
+        for obj in context.scene.objects:
+            # don't care about active object...
+            obj.border_lines.borderlines_use = o.border_lines.borderlines_use
+            obj.border_lines.borderlines_width = o.border_lines.borderlines_width
+            obj.border_lines.finer_lines_behind_use = o.border_lines.finer_lines_behind_use
+            obj.border_lines.custom_color = o.border_lines.custom_color
+            obj.border_lines.custom_color_use = o.border_lines.custom_color_use
+        context.area.tag_redraw()
+        return {'FINISHED'}
 
 
 class BorderLinesCollectionGroup(bpy.types.PropertyGroup):
     borderlines_use = bpy.props.BoolProperty(
         name="Border Lines",
         description="Display border edges thicker",
-        default=False,
-        update=updateBGLData)
+        default=False)
     borderlines_width = bpy.props.FloatProperty(
         name="Width",
         description="Border lines width in pixels",
         min=1.0,
         max=10.0,
         default=3.0,
-        subtype='PIXEL',
-        update=updateBGLData)
+        subtype='PIXEL')
     finer_lines_behind_use = bpy.props.BoolProperty(
         name="Finer Lines behind",
         description="Display partially hidden border edges finer in non-occlude mode",
-        default=True,
-        update=updateBGLData)
+        default=True)
     custom_color = bpy.props.FloatVectorProperty(
         name="Custom Color",
         description="Unique Color to draw Border Lines with",
@@ -237,44 +340,50 @@ class BorderLinesCollectionGroup(bpy.types.PropertyGroup):
     custom_color_use = bpy.props.BoolProperty(
         name="Custom Color",
         description="Use a unique Color to draw Border Lines with",
-        default=False,
-        update=updateBGLData)
+        default=False)
 
 
-    
-    
 def displayBorderLinesPanel(self, context):
-    layout = self.layout
 
-    border_lines = context.window_manager.border_lines
+    if context.active_object and context.active_object.type == 'MESH':
+        border_lines = context.active_object.border_lines
+    
+        box = self.layout.box()
 
-    layout.prop(border_lines, "borderlines_use")
+        split = box.split(percentage=0.8)
 
-    if border_lines.borderlines_use:
-        split = layout.split(percentage=0.1)
-        split.separator()
-        split.prop(border_lines, "borderlines_width")
+        col = split.column()
+        col2 = split.column()
 
-        split = layout.split(percentage=0.1)
-        split.separator()
-        if border_lines.custom_color_use:
-            split2 = split.split()    
-            split2.prop(border_lines, "custom_color_use")
-            split2.prop(border_lines, "custom_color", text="")
-        else:
-            split.prop(border_lines, "custom_color_use")
+        col2.alignment = 'RIGHT'
 
+        col.prop(border_lines, "borderlines_use")
+        col2.operator("object.border_lines_copy_use", text="", icon='COPYDOWN')
 
-        if context.mode == 'EDIT_MESH' and not context.space_data.use_occlude_geometry:
-            split = layout.split(percentage=0.1)
-            split.separator()
-            split.prop(border_lines, "finer_lines_behind_use")
+        if border_lines.borderlines_use:
+            
+            col.prop(border_lines, "borderlines_width")
+            col2.operator("object.border_lines_copy_width", text="", icon='COPYDOWN')
+            col.prop(border_lines, "custom_color_use")
+            col2.operator("object.border_lines_copy_custom", text="", icon='COPYDOWN')
+            
+            if border_lines.custom_color_use:
+                split = col.split(percentage=0.1)    
+                split.separator()
+                split.prop(border_lines, "custom_color", text="")
+                col2.operator("object.border_lines_copy_color", text="", icon='COPYDOWN')
+
+            if context.mode == 'EDIT_MESH' and not context.space_data.use_occlude_geometry:
+                col.prop(border_lines, "finer_lines_behind_use")
+                col2.operator("object.border_lines_copy_finer", text="", icon='COPYDOWN')
+
+        box.operator("object.border_lines_copy_settings", icon='COPYDOWN')
             
     
 
 def register():
     bpy.utils.register_module(__name__)
-    bpy.types.WindowManager.border_lines = bpy.props.PointerProperty(
+    bpy.types.Object.border_lines = bpy.props.PointerProperty(
         type=BorderLinesCollectionGroup)
     bpy.types.VIEW3D_PT_view3d_shading.append(displayBorderLinesPanel)
     if handle:
@@ -285,7 +394,7 @@ def register():
 
 def unregister():
     bpy.types.VIEW3D_PT_view3d_shading.remove(displayBorderLinesPanel)
-    del bpy.types.WindowManager.border_lines
+    del bpy.types.Object.border_lines
     if handle:
         bpy.types.SpaceView3D.draw_handler_remove(handle[0], 'WINDOW')
         handle[:] = []
