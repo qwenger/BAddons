@@ -53,11 +53,13 @@ Generalities on writing client scripts:
   - nors            (list of mathutils.Vector)
   - amount_tris     (int)
   - tris            (list of (int, int, int) tuples)
+  - fname           (str or None)
 
   methods get(Current)Velocity return a VelocityStructure instance with
   attributes
   - amount_verts    (int)
   - vels            (list of mathutils.Vector)
+  - fname           (str or None)
 
 See ogl_velocitiesrenderer.py for an example of client script.
 
@@ -79,7 +81,7 @@ Remarks:
 bl_info = {
     "name": "Handle cache",
     "author": "Quentin Wenger (Matpi)",
-    "version": (1, 1),
+    "version": (1, 2),
     "blender": (2, 76, 0),
     "location": "Properties > Physics > Handle cache panel",
     "description": "Handle .bobj/.bvel fluidsim cache files",
@@ -159,6 +161,7 @@ class ObjectStructure(object):
         self.nors = []
         self.amount_tris = 0
         self.tris = []
+        self.fname = fname_obj
 
         if not fname_obj:
             return
@@ -247,6 +250,7 @@ class VelocityStructure(object):
 
         self.amount_verts = 0
         self.vels = []
+        self.fname = fname_vel
 
         if not fname_vel:
             return
@@ -487,22 +491,10 @@ def changeFrameHandler(scene):
 def register():
     bpy.utils.register_module(__name__)
     bpy.app.handlers.frame_change_post.append(changeFrameHandler)
-    """
-    bpy.utils.register_class(PHYSICS_UL_handlers)
-    bpy.utils.register_class(PHYSICS_PT_handle_cache)
-    bpy.utils.register_class(ModulePropertyGroup)
-    bpy.utils.register_class(HandleCacheProperties)
-    """
 
 def unregister():
     bpy.app.handlers.frame_change_post.remove(changeFrameHandler)
     bpy.utils.unregister_module(__name__)
-    """
-    bpy.utils.unregister_class(HandleCacheProperties)
-    bpy.utils.unregister_class(ModulePropertyGroup)
-    bpy.utils.unregister_class(PHYSICS_PT_handle_cache)
-    bpy.utils.unregister_class(PHYSICS_UL_handlers)
-    """
 
 if __name__ == "__main__":
     register()
