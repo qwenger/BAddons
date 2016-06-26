@@ -25,7 +25,7 @@
 bl_info = {"name": "Node ColorRamp Dropper",
            "description": "Drop multiple mouse-picked colors to colorramp node",
            "author": "Quentin Wenger (Matpi)",
-           "version": (1, 0),
+           "version": (1, 1),
            "blender": (2, 75, 0),
            "location": "Node Editor > Properties > ColorRamp Dropper",
            "warning": "",
@@ -275,6 +275,21 @@ class DropperWorker(object):
                 blf.size(0, 10, context.user_preferences.system.dpi)
                 blf.draw(0, "(%.3f, %.3f, %.3f)" % tuple(p[-1]))
 
+        bgl.glColor4f(0.8, 0.8, 0.8, 1.0)
+        blf.size(0, 20, context.user_preferences.system.dpi)
+        if context.window_manager.crd_use_intermediate:
+            blf.position(0, 10, 60, 0)
+            blf.draw(0, "Oversamples:")
+            blf.position(0, 160, 60, 0)
+            blf.draw(0, str(context.window_manager.crd_intermediate_amount))
+        blf.position(0, 10, 30, 0)
+        blf.draw(0, "Path Type:")
+        blf.position(0, 160, 30, 0)
+        blf.draw(
+            0,
+            {'POLYLINE':"Polyline", 'CUBIC_SPLINE':"Cubic Spline"}[
+                context.window_manager.crd_path_type])
+
     def updatePoints(self, context):
         # better reuse of previously created arrays?
         
@@ -403,6 +418,9 @@ class DropperWorker(object):
             self.main_points = []
             self.removeHandle(context)
             return False
+
+    def tagRedraw(self):
+        self.area.tag_redraw()
         
     def finalize(self, context):
         if self.handle is None:
@@ -609,7 +627,26 @@ class NodeColorRampDropperDraw(bpy.types.Operator):
             context.window.cursor_modal_restore()
             self._dropper_worker.cancel(context)
             return {'CANCELLED'}
-
+        elif event.type == 'MIDDLEMOUSE':
+            if event.value == 'PRESS':
+                # make this customizable for more items
+                tps = ('POLYLINE', 'CUBIC_SPLINE')
+                for i, tp in enumerate(tps):
+                    if context.window_manager.crd_path_type == tp:
+                        context.window_manager.crd_path_type = tps[i - 1]
+                        break
+                self._dropper_worker.tagRedraw()
+        elif event.type == 'WHEELUPMOUSE':
+            context.window_manager.crd_use_intermediate = True
+            context.window_manager.crd_intermediate_amount += 1
+            self._dropper_worker.tagRedraw()
+        elif event.type == 'WHEELDOWNMOUSE':
+            context.window_manager.crd_intermediate_amount = max(
+                0, context.window_manager.crd_intermediate_amount - 1)
+            self._dropper_worker.tagRedraw()
+            context.window_manager.crd_use_intermediate = (
+                context.window_manager.crd_intermediate_amount != 0)
+        
         return {'RUNNING_MODAL'}
 
     def execute(self, context):
