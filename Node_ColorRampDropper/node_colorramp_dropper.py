@@ -643,9 +643,9 @@ class NodeColorRampDropperDraw(bpy.types.Operator):
         elif event.type == 'WHEELDOWNMOUSE':
             context.window_manager.crd_intermediate_amount = max(
                 0, context.window_manager.crd_intermediate_amount - 1)
-            self._dropper_worker.tagRedraw()
             context.window_manager.crd_use_intermediate = (
                 context.window_manager.crd_intermediate_amount != 0)
+            self._dropper_worker.tagRedraw()
         
         return {'RUNNING_MODAL'}
 
