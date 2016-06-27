@@ -25,7 +25,7 @@
 bl_info = {"name": "Node ColorRamp Dropper",
            "description": "Drop multiple mouse-picked colors to colorramp node",
            "author": "Quentin Wenger (Matpi)",
-           "version": (1, 1),
+           "version": (1, 2),
            "blender": (2, 75, 0),
            "location": "Node Editor > Properties > ColorRamp Dropper",
            "warning": "",
@@ -107,6 +107,8 @@ class DropperWorker(object):
 
         self.node_tree = initial_context.space_data.node_tree
         self.node = self.node_tree.nodes.active
+
+        self.initial_area = initial_context.area
         
         self.main_points = []
         self.points = [] # [x, y, region_x, region_y, is_main, rgb]
@@ -117,6 +119,46 @@ class DropperWorker(object):
         self.space = None
         self.area = None
         self.viewport = None
+
+        # we can assume same window manager as later
+        wm = initial_context.window_manager
+
+        a = 0.0
+        b = 1.0
+        if wm.crd_use_interval:
+            a = wm.crd_interval_min
+            b = wm.crd_interval_max
+
+        if wm.crd_use_active and self.node and self.node.type == 'VALTORGB':
+            cr = self.node.color_ramp
+            if wm.crd_erase_keys:
+                if wm.crd_use_interval:
+                    if wm.crd_erase_keys_interval == 'ALL':
+                        self.remaining = 0
+                    elif wm.crd_erase_keys_interval == 'INTERVAL':
+                        self.remaining = 0
+                        for key in cr.elements:
+                            if key.position < a or b < key.position:
+                                self.remaining += 1
+                else:
+                    self.remaining = 0
+            else:
+                self.remaining = len(cr.elements)
+        else:
+            if wm.crd_erase_keys:
+                if wm.crd_use_interval:
+                    if wm.crd_erase_keys_interval == 'ALL':
+                        self.remaining = 0
+                    elif wm.crd_erase_keys_interval == 'INTERVAL':
+                        # Blender's default: one at 0.0, one at 1.0
+                        a = wm.crd_interval_min
+                        b = wm.crd_interval_max
+                        self.remaining = int(0.0 < a) + int(b < 1.0)
+                else:
+                    self.remaining = 0
+            else:
+                # Blender's default: 2 keys
+                self.remaining = 2
 
     @staticmethod
     def convertFromSRGB(value):            
@@ -183,11 +225,16 @@ class DropperWorker(object):
         bgl.glEnd()
 
     @staticmethod
-    def drawSegment(x1, y1, x2, y2, future=False):
+    def drawSegment(x1, y1, x2, y2, future=False, limit=False):
         dx = x2 - x1
         dy = y2 - y1
         if max(abs(dx), abs(dy)) < 20:
             return
+        
+        if future:
+            alpha = 0.2
+        else:
+            alpha = 0.5
 
         if abs(dx) >= abs(dy):
             xa = x1 + sgn(dx)*10
@@ -206,10 +253,10 @@ class DropperWorker(object):
         bgl.glEnable(bgl.GL_LINE_STIPPLE)
         bgl.glEnable(bgl.GL_BLEND)
         
-        if future:
-            bgl.glColor4f(0.0, 0.0, 0.0, 0.2)
+        if limit:
+            bgl.glColor4f(1.0, 0.0, 0.0, alpha)
         else:
-            bgl.glColor4f(0.0, 0.0, 0.0, 0.5)
+            bgl.glColor4f(0.0, 0.0, 0.0, alpha)
 
         bgl.glLineStipple(1, 0x00FF)
         bgl.glBegin(bgl.GL_LINES)
@@ -217,10 +264,7 @@ class DropperWorker(object):
         bgl.glVertex2f(xb, yb)
         bgl.glEnd()
         
-        if future:
-            bgl.glColor4f(1.0, 1.0, 1.0, 0.2)
-        else:
-            bgl.glColor4f(1.0, 1.0, 1.0, 0.5)
+        bgl.glColor4f(1.0, 1.0, 1.0, alpha)
 
         bgl.glLineStipple(1, 0xFF00)
         bgl.glBegin(bgl.GL_LINES)
@@ -244,36 +288,75 @@ class DropperWorker(object):
         for p in itertools.chain(self.points, self.current_mouse_points):
             bgl.glReadPixels(p[0], p[1], 1, 1, bgl.GL_RGB, bgl.GL_FLOAT, b)
             p[-1] = self.convertColorspace(context, b.to_list())
-        
+
+        points_drawn = 0
+        max_points_to_draw = PTS_LIMIT - self.remaining
+        last_point_drawn = None
         for p in self.points:
+            if points_drawn == max_points_to_draw:
+                break
             self.drawPoint(*p[2:5])
+            last_point_drawn = p
+            points_drawn += 1
 
         # under cursor -> probably not wanted
         for p in self.current_mouse_points[:-1]:
+            if points_drawn == max_points_to_draw:
+                break
             self.drawPoint(*p[2:5])
+            last_point_drawn = p
+            points_drawn += 1
 
+        segments_drawn = 0
         if len(self.points) > 1:
             ps = iter(self.points)
             next(ps)
             for p1, p2 in zip(self.points, ps):
+                if segments_drawn == max_points_to_draw - 1:
+                    break
                 self.drawSegment(p1[2], p1[3], p2[2], p2[3], False)
+                segments_drawn += 1
 
         if self.current_mouse_points:
             p1 = self.points[-1]
             p2 = self.current_mouse_points[0]
-            self.drawSegment(p1[2], p1[3], p2[2], p2[3], True)
-            if len(self.current_mouse_points) > 1:
-                ps = iter(self.current_mouse_points)
-                next(ps)
-                for p1, p2 in zip(self.current_mouse_points, ps):
-                    self.drawSegment(p1[2], p1[3], p2[2], p2[3], True)
+            if segments_drawn < max_points_to_draw - 1:
+                self.drawSegment(p1[2], p1[3], p2[2], p2[3], True)
+                segments_drawn += 1
+                if len(self.current_mouse_points) > 1:
+                    ps = iter(self.current_mouse_points)
+                    next(ps)
+                    for p1, p2 in zip(self.current_mouse_points, ps):
+                        if segments_drawn == max_points_to_draw - 1:
+                            break
+                        self.drawSegment(p1[2], p1[3], p2[2], p2[3], True)
+                        segments_drawn += 1
+
+        if points_drawn == max_points_to_draw:
+            # this means even the point under the cursor _is_ already
+            # surnumerary, thus we have to draw the last segment in red
+            if self.current_mouse_points:
+                p1 = last_point_drawn
+                p2 = self.current_mouse_points[-1]
+                self.drawSegment(p1[2], p1[3], p2[2], p2[3], True, True)
 
         if context.window_manager.crd_show_values:
-            for p in itertools.chain(self.points, self.current_mouse_points):
+            for p, i in zip(
+                itertools.chain(self.points, self.current_mouse_points),
+                range(points_drawn)):
                 blf.position(0, p[2] + 10, p[3] - 10, 0)
                 bgl.glColor4f(0.8, 0.8, 0.8, 1.0)
                 blf.size(0, 10, context.user_preferences.system.dpi)
                 blf.draw(0, "(%.3f, %.3f, %.3f)" % tuple(p[-1]))
+            if points_drawn <= max_points_to_draw:
+                # we want to draw the current color anyways
+                if self.current_mouse_points:
+                    p = self.current_mouse_points[-1]
+                    blf.position(0, p[2] + 10, p[3] - 10, 0)
+                    bgl.glColor4f(0.8, 0.8, 0.8, 1.0)
+                    blf.size(0, 10, context.user_preferences.system.dpi)
+                    blf.draw(0, "(%.3f, %.3f, %.3f)" % tuple(p[-1]))
+                
 
         bgl.glColor4f(0.8, 0.8, 0.8, 1.0)
         blf.size(0, 20, context.user_preferences.system.dpi)
@@ -291,6 +374,9 @@ class DropperWorker(object):
                 context.window_manager.crd_path_type])
 
     def updatePoints(self, context):
+        if self.handle is None:
+            return
+        
         # better reuse of previously created arrays?
         
         self.points = []
@@ -298,6 +384,13 @@ class DropperWorker(object):
 
         wm = context.window_manager
         am = wm.crd_intermediate_amount
+
+        if not wm.crd_keep_memory:
+            max_pts_to_draw = PTS_LIMIT - self.remaining
+            sub = wm.crd_intermediate_amount if wm.crd_use_intermediate else 0
+            if len(self.main_points)*(1 + sub) - 1 > max_pts_to_draw:
+                self.main_points = self.main_points[
+                    :(max_pts_to_draw + 1)//(1 + sub) + 1]
 
         if self.current_mouse_main_point == self.main_points[-1]:
             main_points = [] + self.main_points # quite hacky...
@@ -367,6 +460,11 @@ class DropperWorker(object):
             #event.mouse_region_x, event.mouse_region_y]
         self.updatePoints(context)
 
+    def update(self, context):
+        # this ensures the redraw
+        self.initial_area.tag_redraw()
+        self.updatePoints(context)
+
     def setScreenElements(self, context, event):
         # context.space_data remains NODE_EDITOR-typed even if the event
         # (e.g. the first left click) was performed on another area
@@ -399,12 +497,15 @@ class DropperWorker(object):
             self.handle = type(self.space).draw_handler_add(
                 self.drawCallback, (context,), 'WINDOW', 'POST_PIXEL')
 
-        self.current_mouse_main_point = [
-            event.mouse_x, event.mouse_y,
-            event.mouse_x - self.viewport[0], event.mouse_y - self.viewport[1]]
-            #event.mouse_region_x, event.mouse_region_y]
-        self.main_points.append(self.current_mouse_main_point)
-        self.updatePoints(context)
+        if (context.window_manager.crd_keep_memory or
+            (len(self.points) < PTS_LIMIT - self.remaining)):
+            self.current_mouse_main_point = [
+                event.mouse_x, event.mouse_y,
+                event.mouse_x - self.viewport[0],
+                event.mouse_y - self.viewport[1]]
+                #event.mouse_region_x, event.mouse_region_y]
+            self.main_points.append(self.current_mouse_main_point)
+            self.updatePoints(context)
 
     def removePoint(self, context):
         if self.handle is None or not self.main_points:
@@ -418,9 +519,6 @@ class DropperWorker(object):
             self.main_points = []
             self.removeHandle(context)
             return False
-
-    def tagRedraw(self):
-        self.area.tag_redraw()
         
     def finalize(self, context):
         if self.handle is None:
@@ -437,41 +535,6 @@ class DropperWorker(object):
         if wm.crd_use_interval:
             a = wm.crd_interval_min
             b = wm.crd_interval_max
-
-        if wm.crd_use_active and self.node and self.node.type == 'VALTORGB':
-            cr = self.node.color_ramp
-            if wm.crd_erase_keys:
-                if wm.crd_use_interval:
-                    if wm.crd_erase_keys_interval == 'ALL':
-                        remaining = 0
-                    elif wm.crd_erase_keys_interval == 'INTERVAL':
-                        remaining = 0
-                        for key in cr.elements:
-                            if key.position < a or b < key.position:
-                                remaining += 1
-                else:
-                    remaining = 0
-            else:
-                remaining = len(cr.elements)
-        else:
-            if wm.crd_erase_keys:
-                if wm.crd_use_interval:
-                    if wm.crd_erase_keys_interval == 'ALL':
-                        remaining = 0
-                    elif wm.crd_erase_keys_interval == 'INTERVAL':
-                        # Blender's default: one at 0.0, one at 1.0
-                        a = wm.crd_interval_min
-                        b = wm.crd_interval_max
-                        remaining = int(0.0 < a) + int(b < 1.0)
-                else:
-                    remaining = 0
-            else:
-                # Blender's default: 2 keys
-                remaining = 2
-
-        if len(self.points) + remaining > PTS_LIMIT:
-            self.removeHandle(context)
-            return TOO_MANY
         
         if wm.crd_use_active and self.node and self.node.type == 'VALTORGB':
             cr = self.node.color_ramp
@@ -486,7 +549,12 @@ class DropperWorker(object):
             self.node_tree.nodes.active = nd
             cr = nd.color_ramp
 
-        if remaining == 0:
+        pts_to_draw = PTS_LIMIT - self.remaining
+        if not pts_to_draw:
+            self.removeHandle(context)
+            return TOO_MANY
+
+        if self.remaining == 0:
             # we have to avoid removing all elements (forbidden)
             # thus we keep one and transform it into something usable
             while len(cr.elements) > 1:
@@ -504,14 +572,14 @@ class DropperWorker(object):
                     else:
                         break
             key = cr.elements.new(a)
-            key.color = self.points[0][-1] + [wm.crd_keys_alpha]        
+            key.color = self.points[0][-1] + [wm.crd_keys_alpha]
 
         if len(self.points) > 1:
             if wm.crd_use_segments_length:
                 ps = iter(self.points)
                 next(ps)
                 lengths = []
-                for p1, p2 in zip(self.points, ps):
+                for p1, p2, _ in zip(self.points, ps, range(pts_to_draw - 1)):
                     lengths.append(
                         ((p2[0] - p1[0])**2 + (p2[1] - p1[1])**2)**0.5)
                 total_length = sum(lengths)
@@ -528,12 +596,16 @@ class DropperWorker(object):
                 ratio = (b - a)/(len(self.points) - 1)
                 ps = iter(self.points)
                 next(ps)
-                for p, i in zip(ps, itertools.count(a + ratio, ratio)):
+                for p, i, _ in zip(
+                    ps, itertools.count(a + ratio, ratio),
+                    range(pts_to_draw - 1)):
                     key = cr.elements.new(i)
                     key.color = p[-1] + [wm.crd_keys_alpha]
                 key.position = b
         
         self.removeHandle(context)
+        if len(self.points) > pts_to_draw:
+            return TOO_MANY
         return OK
 
     def cancel(self, context):
@@ -574,8 +646,8 @@ class NodeColorRampDropperDraw(bpy.types.Operator):
                 self.require_redraw = False
                 context.window.cursor_modal_restore()
                 self.report(
-                    {'ERROR'},
-                    "Too many points (limit: %s)" % PTS_LIMIT)
+                    {'INFO'},
+                    "Too many points (limit: %s), truncated" % PTS_LIMIT)
                 return {'CANCELLED'}
             elif done == NEED_REDRAW:
                 pass
@@ -583,8 +655,9 @@ class NodeColorRampDropperDraw(bpy.types.Operator):
             if context.window_manager.crd_free_hand:
                 if self._dropper_worker.isActive():
                     self._dropper_worker.addPoint(context, event)
-            else:
-                self._dropper_worker.updateMousePosition(context, event)
+            # in case of crd_free_hand we will have to updatePoints...
+            # is not dramatic.
+            self._dropper_worker.updateMousePosition(context, event)
         elif event.type == 'LEFTMOUSE':
             if context.window_manager.crd_free_hand:
                 if event.value == 'PRESS':
@@ -618,8 +691,8 @@ class NodeColorRampDropperDraw(bpy.types.Operator):
                 elif done == TOO_MANY:
                     context.window.cursor_modal_restore()
                     self.report(
-                        {'ERROR'},
-                        "Too many points (limit: %s)" % PTS_LIMIT)
+                        {'INFO'},
+                        "Too many points (limit: %s), truncated" % PTS_LIMIT)
                     return {'CANCELLED'}
                 elif done == NEED_REDRAW:
                     self.require_redraw = True
@@ -635,17 +708,17 @@ class NodeColorRampDropperDraw(bpy.types.Operator):
                     if context.window_manager.crd_path_type == tp:
                         context.window_manager.crd_path_type = tps[i - 1]
                         break
-                self._dropper_worker.tagRedraw()
+                self._dropper_worker.update(context)
         elif event.type == 'WHEELUPMOUSE':
             context.window_manager.crd_use_intermediate = True
             context.window_manager.crd_intermediate_amount += 1
-            self._dropper_worker.tagRedraw()
+            self._dropper_worker.update(context)
         elif event.type == 'WHEELDOWNMOUSE':
             context.window_manager.crd_intermediate_amount = max(
                 0, context.window_manager.crd_intermediate_amount - 1)
             context.window_manager.crd_use_intermediate = (
                 context.window_manager.crd_intermediate_amount != 0)
-            self._dropper_worker.tagRedraw()
+            self._dropper_worker.update(context)
         
         return {'RUNNING_MODAL'}
 
@@ -701,6 +774,7 @@ class NodeColorRampDropperPanel(bpy.types.Panel):
 
         layout.prop(wm, "crd_free_hand")
         layout.prop(wm, "crd_use_segments_length")
+        layout.prop(wm, "crd_keep_memory")
         layout.prop(wm, "crd_keys_alpha", slider=True)
         layout.prop(wm, "crd_show_values")
 
@@ -798,6 +872,11 @@ def register():
         min=0.0,
         max=1.0,
         default=1.0)
+    bpy.types.WindowManager.crd_keep_memory = bpy.props.BoolProperty(
+        name="Keep Memory",
+        description="Keep points above the allowed amount limit in memory "
+            "while drawing",
+        default=False)
 
 def unregister():
     bpy.utils.unregister_module(__name__)
@@ -814,6 +893,7 @@ def unregister():
     del bpy.types.WindowManager.crd_intermediate_amount
     del bpy.types.WindowManager.crd_free_hand
     del bpy.types.WindowManager.crd_keys_alpha
+    del bpy.types.WindowManager.crd_keep_memory
 
 
 if __name__ == "__main__":
