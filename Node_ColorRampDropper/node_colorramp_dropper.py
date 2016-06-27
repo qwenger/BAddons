@@ -593,7 +593,7 @@ class DropperWorker(object):
                 # last -> precision
                 key.position = b
             else:
-                ratio = (b - a)/(len(self.points) - 1)
+                ratio = (b - a)/(min(len(self.points), pts_to_draw) - 1)
                 ps = iter(self.points)
                 next(ps)
                 for p, i, _ in zip(
